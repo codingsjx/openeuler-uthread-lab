@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "environment": {
+    "system": "Linux",
+    "node": "localhost.localdomain",
+    "release": "6.6.0-132.0.0.111.oe2403sp3.x86_64",
+    "version": "#1 SMP Mon Dec 29 23:07:38 CST 2025",
+    "machine": "x86_64",
+    "processor": "x86_64"
+  },
+  "io": {
+    "blocking": {
+      "worker_ticks_before_read_end": 0,
+      "first_worker_tick_us": 200583,
+      "read_end_us": 200573
+    },
+    "event": {
+      "worker_ticks_before_read_end": 40,
+      "first_worker_tick_us": 28,
+      "read_end_us": 445993
+    }
+  },
+  "note": "Single smoke experiment; not a benchmark or statistical performance claim."
+}

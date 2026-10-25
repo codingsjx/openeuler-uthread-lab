@@ -1,0 +1,61 @@
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic src/uthread.c examples/demo.c -o build/demo
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic src/uthread.c tests/test_runtime.c -o build/test_runtime
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -pthread src/uthread.c examples/benchmark.c -o build/benchmark
+python3 scripts/run_experiments.py
+PASS: EOF, deadline, invalid fd, blocking-fd rejection, competing readers, EINTR, reinitialization
+{
+  "status": "passed",
+  "environment": {
+    "system": "Linux",
+    "node": "localhost.localdomain",
+    "release": "6.6.0-132.0.0.111.oe2403sp3.x86_64",
+    "version": "#1 SMP Mon Dec 29 23:07:38 CST 2025",
+    "machine": "x86_64",
+    "processor": "x86_64"
+  },
+  "io": {
+    "blocking": {
+      "worker_ticks_before_read_end": 0,
+      "first_worker_tick_us": 200583,
+      "read_end_us": 200573
+    },
+    "event": {
+      "worker_ticks_before_read_end": 40,
+      "first_worker_tick_us": 28,
+      "read_end_us": 445993
+    }
+  },
+  "note": "Single smoke experiment; not a benchmark or statistical performance claim."
+}
+test_bad_trace_is_rejected (test_reporting.ReportingTests.test_bad_trace_is_rejected) ... ok
+test_failed_measurements_are_not_reported_as_passed (test_reporting.ReportingTests.test_failed_measurements_are_not_reported_as_passed) ... ok
+test_known_quartiles (test_reporting.ReportingTests.test_known_quartiles) ... ok
+test_script_terminator_is_not_executable (test_reporting.ReportingTests.test_script_terminator_is_not_executable) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
+Completed warmup round 2
+Completed measurement round 1
+Completed measurement round 2
+Completed measurement round 3
+Completed measurement round 4
+Completed measurement round 5
+Completed measurement round 6
+Completed measurement round 7
+Completed measurement round 8
+Completed measurement round 9
+Completed measurement round 10
+Completed measurement round 11
+Completed measurement round 12
+Completed measurement round 13
+Completed measurement round 14
+Completed measurement round 15
+Completed measurement round 16
+Completed measurement round 17
+Completed measurement round 18
+Completed measurement round 19
+Completed measurement round 20
+BENCHMARK_RESULT=/home/oslab/oslab-project/uthread-lab/results/benchmark-20261025T064727Z-1927f0/benchmark.json
+REPORT=/home/oslab/oslab-project/uthread-lab/results/report.html

@@ -1,0 +1,8 @@
+build/
+results/
+__pycache__/
+.venv/
+*.o
+*.exe
+.env
+.env.*

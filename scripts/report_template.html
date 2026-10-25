@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>openEuler 用户级线程实验报告</title>
+<style>
+:root{font-family:system-ui,"Microsoft YaHei",sans-serif;color:#203249;background:#f3f6fa;font-size:15px}*{box-sizing:border-box}body{margin:0}main{max-width:1200px;margin:auto;padding:40px 30px 64px}header{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:30px}h1{font-size:29px;line-height:1.4;margin:8px 0}h2{font-size:20px;margin:0 0 14px}p{line-height:1.8;margin:8px 0}.eyebrow{color:#426d87;letter-spacing:2px;font-size:12px}.badge{background:#dff4ed;color:#14684f;border-radius:30px;padding:9px 16px;white-space:nowrap}.muted{color:#60758a}.panel{background:#fff;padding:25px;border:1px solid #dce5ef;border-radius:14px;margin-bottom:22px}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:18px 0}.card{padding:20px;border:1px solid #e0e7ef;border-radius:10px;background:#f9fbfd}.value{font-size:26px;font-weight:650;margin:8px 0}.caption{font-size:12px;color:#60758a}.controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:18px 0}select,button,input{font:inherit}select,button{padding:9px 13px;border:1px solid #c9d7e4;border-radius:7px;background:white;color:#203249}button{cursor:pointer}button.primary{background:#1b526e;border-color:#1b526e;color:white}button:hover{filter:brightness(.94)}label{display:flex;gap:8px;align-items:center}input[type=range]{width:170px;accent-color:#1b7183}.scroll{overflow-x:auto;border:1px solid #e2e8f0;border-radius:8px;margin-top:15px}svg{display:block;font-family:inherit}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:11px 13px;border-bottom:1px solid #e0e7ef;text-align:left;white-space:nowrap}th{background:#eef3f8;font-weight:600}tbody tr:hover{background:#f8fafc}.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#536b80}.legend span{display:flex;align-items:center;gap:5px}.dot{width:10px;height:10px;display:inline-block;border-radius:2px}details{margin-top:18px}summary{cursor:pointer;color:#345c78}pre{white-space:pre-wrap;word-break:break-word;background:#f4f7fa;border-radius:7px;padding:14px;font-size:12px;line-height:1.65}#eventLog{max-height:300px;overflow:auto}.notice{background:#edf4fa;border-left:3px solid #789fb8;padding:10px 15px;color:#4b657a;margin-top:15px;font-size:13px}.split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.metric-title{font-size:14px;color:#536b80;margin-bottom:10px}.empty{color:#7a6331;background:#fff7e7;padding:15px;border-radius:7px}footer{font-size:12px;color:#708399;margin-top:25px}a{color:#165f80}@media(max-width:760px){main{padding:24px 15px}header{display:block}.badge{display:inline-block}.cards,.split{grid-template-columns:1fr}.panel{padding:18px}h1{font-size:23px}}
+.cards>*,.split>*{min-width:0}.split svg{width:100%;height:auto;max-width:100%}header{flex-wrap:wrap}main{width:100%}@media(max-width:980px){.split{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main>
+<header><div><div class="eyebrow">OPERATING SYSTEMS LAB</div><h1>用户级线程调度与 I/O 阻塞实验</h1><p class="muted">查看真实运行事件，比较不同执行方式。报告可离线打开。</p></div><span class="badge" id="status">正在读取结果</span></header>
+<section class="panel"><h2>重复实验对照</h2><p class="muted" id="method"></p><div id="benchmarkContent"></div>
+<details><summary>实验方法、环境与适用边界</summary><p>三种方式执行相同的固定循环，并核对计算校验值。每轮随机排列执行顺序，预热不计入统计。子进程绑定到同一个虚拟 CPU；这不等于独占物理 CPU。</p><p>时间以各程序内部单调时钟计量，文件导出在计时区间外。用户级线程的内部状态记录保持开启；这里只比较带观测的实现。CPU 时间不含独立写入进程。峰值 RSS 还可能受 fork/exec 启动链与内核记账影响，本报告不据此推断运行时本体的内存优势。四分位数描述本批数据的离散程度，不代表普遍性能优势。</p><pre id="environment"></pre></details></section>
+<section class="panel"><h2>运行轨迹回放</h2><p class="muted">状态区间来自运行时事件；圆点代表程序标记。将鼠标停在图形上可查看时间与原因。</p>
+<div class="controls"><label>实验<select id="scene"></select></label><button class="primary" id="play">播放</button><label>进度<input type="range" id="progress" min="0" max="1000" value="1000"><output id="time"></output></label><label>缩放<input type="range" id="zoom" min="1" max="8" value="1"></label><button id="export">下载当前 CSV</button></div>
+<div class="legend"><span><i class="dot" style="background:#a7b8cb"></i>READY 就绪</span><span><i class="dot" style="background:#2d8992"></i>RUNNING 执行</span><span><i class="dot" style="background:#e8b65c"></i>WAIT_IO 等待</span><span><i class="dot" style="background:#354e73"></i>程序标记</span></div>
+<div class="scroll" id="timelineWrap"><svg id="timeline" role="img" aria-label="线程状态和事件时间线"></svg></div><p class="caption" id="traceCaption"></p><div class="notice">pthread 的标记轨迹只显示程序事件，不推断内核调度状态。回放表示已记录的事件序列，不是程序的确定性重执行。</div>
+<details><summary>查看当前进度前的原始事件</summary><div id="eventLog"><table><thead><tr><th>时间 ms</th><th>任务</th><th>事件</th><th>原因 / 标记</th></tr></thead><tbody id="logBody"></tbody></table></div><p class="caption" id="logCount"></p></details></section>
+<footer>数据随报告嵌入，无需联网。定量结论以原始 CSV、benchmark.json 和对应源码版本为依据。</footer>
+</main>
+<script id="report-data" type="application/json">__REPORT_JSON__</script>
+<script>
+'use strict';
+const data=JSON.parse(document.getElementById('report-data').textContent);
+const $=id=>document.getElementById(id),NS='http://www.w3.org/2000/svg';
+const names={blocking:'阻塞用户线程',event:'事件驱动用户线程',pthread:'pthread'};
+const colors={ready:'#a7b8cb',running:'#2d8992',wait_io:'#e8b65c',done:'#dce4ed'};
+function el(tag,text,parent){let n=document.createElement(tag);if(text!==null)n.textContent=text;if(parent)parent.appendChild(n);return n}
+function svg(tag,attrs,parent,title){let n=document.createElementNS(NS,tag);for(let [k,v] of Object.entries(attrs))n.setAttribute(k,v);if(parent)parent.appendChild(n);if(title){let t=document.createElementNS(NS,'title');t.textContent=title;n.appendChild(t)}return n}
+function txt(parent,x,y,text,attrs={}){let n=svg('text',{x,y,fill:'#5d7187','font-size':11,...attrs},parent);n.textContent=text;return n}
+function num(value){return Number(value).toLocaleString('zh-CN',{maximumFractionDigits:3})}
+const bench=data.benchmark;
+$('status').textContent=bench?'已通过重复实验校验':'已载入功能实验轨迹';
+if(bench){
+ const p=bench.parameters;$('method').textContent=`每种方式 ${p.repeats} 轮有效测量，${p.warmup} 轮预热。每任务 ${p.steps} 步，每步 ${num(p.iterations)} 次固定计算；延迟输入 ${p.delay_ms} ms。`;
+ let cards=el('div',null,$('benchmarkContent'));cards.className='cards';
+ for(let mode of ['blocking','event','pthread']){let c=el('div',null,cards);c.className='card';el('div',names[mode],c);let s=bench.summary[mode].first_worker_tick_us;el('div',num(s.median/1000)+' ms',c).className='value';el('div','工作任务首次推进时间中位数',c).className='caption';el('div',`四分位区间 ${num(s.q1/1000)}–${num(s.q3/1000)} ms`,c).className='caption'}
+ let split=el('div',null,$('benchmarkContent'));split.className='split';
+ for(let [metric,title,scale] of [['wall_us','总完成时间 ms',1000],['cpu_us','进程 CPU 时间 ms',1000]]){
+  let box=el('div',null,split);el('div',title+' · 中位数与四分位区间',box).className='metric-title';
+  let plot=svg('svg',{viewBox:'0 0 500 155',role:'img','aria-label':title},box);
+  let max=Math.max(...Object.values(bench.summary).map(s=>s[metric].q3/scale))*1.15||1;
+  ['blocking','event','pthread'].forEach((mode,i)=>{let s=bench.summary[mode][metric],x=v=>145+v/scale/max*285,y=20+i*45;txt(plot,0,y+15,names[mode]);svg('rect',{x:145,y,width:Math.max(1,x(s.median)-145),height:22,rx:3,fill:mode==='event'?'#2d8992':'#9dafc3'},plot,`${names[mode]} ${num(s.median/scale)} ms`);svg('line',{x1:x(s.q1),x2:x(s.q3),y1:y+11,y2:y+11,stroke:'#233c55','stroke-width':2},plot);txt(plot,438,y+15,num(s.median/scale),{'font-size':10})})
+ }
+ let wrap=el('div',null,$('benchmarkContent'));wrap.className='scroll';let table=el('table',null,wrap),head=el('tr',null,el('thead',null,table));for(let h of ['方式','有效轮数','完成时间中位数 ms','首次推进中位数 ms','等待期间推进次数中位数','峰值 RSS 中位数 KiB（含启动影响）'])el('th',h,head);let body=el('tbody',null,table);
+ for(let mode of ['blocking','event','pthread']){let s=bench.summary[mode],r=el('tr',null,body);for(let t of [names[mode],s.wall_us.n,num(s.wall_us.median/1000),num(s.first_worker_tick_us.median/1000),num(s.ticks_before_read_end.median),num(s.max_rss_kb.median)])el('td',t,r)}
+ $('environment').textContent=JSON.stringify({environment:bench.environment,parameters:bench.parameters,limitations:bench.limitations},null,2);
+}else{$('method').textContent='当前只包含功能实验。运行 make benchmark 后重新生成报告，即可加入重复测量。';$('environment').textContent='尚无重复实验数据。'}
+for(let [i,t] of data.traces.entries()){let o=el('option',t.name,$('scene'));o.value=i}
+let timer=null;
+function stop(){if(timer)clearInterval(timer);timer=null;$('play').textContent='播放'}
+function draw(){
+ let trace=data.traces[Number($('scene').value)],rows=trace.rows;
+ let end=rows.reduce((max,r)=>Math.max(max,r.time_us),1),cut=end*Number($('progress').value)/1000;
+ let tasks=[...new Set(rows.filter(r=>r.tid>=0).map(r=>r.tid))].sort((a,b)=>a-b);
+ let w=Math.max(920,$('timelineWrap').clientWidth)*Number($('zoom').value),left=90,right=w-25;
+ let x=t=>left+t/end*(right-left),plot=$('timeline');plot.replaceChildren();plot.setAttribute('width',w);plot.setAttribute('height',75+tasks.length*65);plot.setAttribute('viewBox',`0 0 ${w} ${75+tasks.length*65}`);
+ for(let i=0;i<=8;i++){let t=end*i/8,xx=x(t);svg('line',{x1:xx,x2:xx,y1:30,y2:45+tasks.length*65,stroke:'#e3eaf2'},plot);txt(plot,xx,20,num(t/1000)+' ms',{'text-anchor':i===8?'end':'start'})}
+ tasks.forEach((id,index)=>{let y=45+index*65;txt(plot,10,y+23,'任务 '+id,{'font-size':13,fill:'#203249'});svg('rect',{x:left,y,width:right-left,height:35,fill:'#f5f8fb',rx:3},plot);let own=rows.filter(r=>r.tid===id);let states=own.filter(r=>Object.hasOwn(colors,r.event));
+  states.forEach((r,j)=>{let until=j+1<states.length?states[j+1].time_us:end;if(r.time_us>cut||r.event==='done')return;let e=Math.min(until,cut);svg('rect',{x:x(r.time_us),y:y+6,width:Math.max(.7,x(e)-x(r.time_us)),height:23,fill:colors[r.event],rx:1},plot,`${r.event} · ${r.detail}\n${num(r.time_us/1000)} → ${num(e/1000)} ms`)});
+  own.filter(r=>r.event==='mark'&&r.time_us<=cut).forEach(r=>svg('circle',{cx:x(r.time_us),cy:y+17,r:3.7,fill:'#354e73',stroke:'#fff','stroke-width':.7},plot,`${r.detail} · ${num(r.time_us/1000)} ms`));
+ });
+ svg('line',{x1:x(cut),x2:x(cut),y1:28,y2:45+tasks.length*65,stroke:'#ba6049','stroke-width':1.5},plot);
+ $('time').textContent=num(cut/1000)+' ms';$('traceCaption').textContent=`${trace.file} · ${rows.length} 条真实事件 · 总时长 ${num(end/1000)} ms`;
+ let visible=rows.filter(r=>r.time_us<=cut),shown=visible.slice(-200);$('logBody').replaceChildren();for(let r of shown){let tr=el('tr',null,$('logBody'));for(let text of [num(r.time_us/1000),r.tid,r.event,r.detail])el('td',text,tr)}$('logCount').textContent=`当前进度前共 ${visible.length} 条，表格显示最后 ${shown.length} 条；下载 CSV 可查看全部。`;
+}
+$('scene').addEventListener('change',()=>{stop();$('progress').value=1000;draw()});$('progress').addEventListener('input',draw);$('zoom').addEventListener('input',draw);window.addEventListener('resize',draw);
+$('play').addEventListener('click',()=>{if(timer){stop();return}if(Number($('progress').value)>=1000)$('progress').value=0;$('play').textContent='暂停';timer=setInterval(()=>{$('progress').value=Math.min(1000,Number($('progress').value)+10);draw();if(Number($('progress').value)>=1000)stop()},40)});
+$('export').addEventListener('click',()=>{let trace=data.traces[Number($('scene').value)];let quote=x=>'"'+String(x).replaceAll('"','""')+'"';let csv='time_us,tid,event,detail\n'+trace.rows.map(r=>[r.time_us,r.tid,r.event,r.detail].map(quote).join(',')).join('\n');let u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));let a=document.createElement('a');a.href=u;a.download=trace.file;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)});
+draw();
+</script></body></html>
