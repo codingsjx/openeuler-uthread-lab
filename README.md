@@ -39,8 +39,8 @@ GitHub 文件页面不会直接执行报告中的交互代码。可点击 Code �
 ## 在 openEuler 中构建
 
 ```sh
+# 在已克隆的项目根目录中执行
 sudo dnf install -y gcc make python3 glibc-devel
-cd uthread-lab
 make
 make check
 ```
