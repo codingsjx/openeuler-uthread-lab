@@ -1,6 +1,16 @@
 name: Verify runtime on openEuler
 on:
   push:
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'examples/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'benchmarks/**'
+      - 'Makefile'
+      - '.gitattributes'
+      - '.github/workflows/**'
   workflow_dispatch:
 permissions:
   contents: read
