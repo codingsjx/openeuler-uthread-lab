@@ -1,0 +1,33 @@
+name: Verify runtime on openEuler
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: openeuler/openeuler:24.03-lts-sp3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: dnf install -y gcc make python3 glibc-devel git
+      - name: Functional tests and data validation
+        run: |
+          mkdir -p results
+          make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
+          python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
+      - name: Same-environment baseline comparison
+        run: make perf-check > results/ci-optimization.log 2>&1
+      - name: Retain real measurements and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-optimization-${{ github.sha }}
+          path: |
+            results/optimization-*/
+            results/ci-check.log
+            results/ci-optimization.log
+          retention-days: 30
