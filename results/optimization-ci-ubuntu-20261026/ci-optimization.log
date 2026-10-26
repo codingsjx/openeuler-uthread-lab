@@ -1,0 +1,12 @@
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -pthread benchmarks/baseline/uthread.c examples/benchmark.c -o build/benchmark-baseline
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic benchmarks/baseline/uthread.c examples/scheduler_benchmark.c -o build/scheduler-baseline
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -DHAVE_TRACE_OPTIONS src/uthread.c examples/scheduler_benchmark.c -o build/scheduler-optimized
+python3 scripts/measure_optimization.py
+Scheduler task count complete: 1
+Scheduler task count complete: 8
+Scheduler task count complete: 32
+I/O case complete: 5 10000
+I/O case complete: 5 1000000
+I/O case complete: 100 10000
+I/O case complete: 100 1000000
+OPTIMIZATION_RESULT=/home/runner/work/openeuler-uthread-lab/openeuler-uthread-lab/results/optimization-20261026T133121Z-d8a005/optimization.json
