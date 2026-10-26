@@ -12,11 +12,20 @@
 static int pipes[2][2], finished, expired, max_fds, two_ready, repolled;
 static int sequence[96], sequence_count, ids[32];
 int __real_poll(struct pollfd *, nfds_t, int);
+int __real___poll_chk(struct pollfd *, nfds_t, int, size_t);
 /* Inspect the actual system-call arguments, then use real kernel I/O. */
 int __wrap_poll(struct pollfd *fds, nfds_t count, int timeout) {
     if ((int)count > max_fds) max_fds = (int)count;
     if (two_ready && finished < 2) repolled++;
     int result = __real_poll(fds,count,timeout);
+    if (result == 2) two_ready = 1;
+    return result;
+}
+/* Ubuntu's fortified libc redirects poll to __poll_chk. Preserve that check. */
+int __wrap___poll_chk(struct pollfd *fds, nfds_t count, int timeout, size_t bytes) {
+    if ((int)count > max_fds) max_fds = (int)count;
+    if (two_ready && finished < 2) repolled++;
+    int result = __real___poll_chk(fds,count,timeout,bytes);
     if (result == 2) two_ready = 1;
     return result;
 }
@@ -70,7 +79,6 @@ int main(void) {
     prepare(1);
     assert(ut_spawn(short_reader,NULL)>=0 && ut_spawn(long_reader,NULL)>=0);
     assert(ut_spawn(delayed_writer,NULL)>=0 && ut_run()==0);
-    fprintf(stderr,"shared wait: finished=%d max_fds=%d\n",finished,max_fds);
     assert(finished==2 && max_fds==1);
     cleanup(1);
     prepare(2);

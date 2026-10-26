@@ -14,7 +14,7 @@ build/test_runtime: src/uthread.c tests/test_runtime.c include/uthread.h | build
 build/test_trace_limit: src/uthread.c tests/test_trace_limit.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DUT_TRACE_LIMIT=16 src/uthread.c tests/test_trace_limit.c -o $@
 build/test_wait_registry: src/uthread.c tests/test_wait_registry.c include/uthread.h | build
-	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_wait_registry.c -Wl,--wrap=poll -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_wait_registry.c -Wl,--wrap=poll,--wrap=__poll_chk -o $@
 build/benchmark: src/uthread.c examples/benchmark.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) -pthread src/uthread.c examples/benchmark.c -o $@
 build/benchmark-baseline: benchmarks/baseline/uthread.c examples/benchmark.c include/uthread.h | build
