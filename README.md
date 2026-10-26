@@ -30,6 +30,7 @@ GitHub 文件页面不会直接执行报告中的交互代码。可点击 Code �
 - 详细记录见 [首次运行验证](docs/FIRST_RUN.md)。其他架构尚未验证。
 - **第二阶段已完成**：并发读者与信号中断测试通过；加入 pthread 对照，完成每种方式 20 轮有效测量和 1 轮预热，保存全部原始数据。详见 [第二阶段结果](docs/STAGE2.md)。
 - **运行时优化已通过 Linux 验证**：按需日志缓冲、紧凑事件记录、无等待时跳过多余扫描、单任务 yield 快速路径、任务槽位复用与 errno 隔离。openEuler 容器中完整日志的 32 任务调度基准耗时中位数降低约 11.76%；I/O 总耗时基本不变。环境、边界及原始结果见 [优化说明](docs/OPTIMIZATION.md)。
+- **第二轮优化已验证**：增加就绪位图与按 fd 去重的持久等待表。相对第一轮，openEuler 容器中 31 读者共享管道的固定合成基准中位数下降 44.06%，独立管道下降 7.94%；纯调度变化很小。这不是通用应用加速比例，见 [第二轮说明与原始证据](docs/WAIT_OPTIMIZATION.md)。
 
 ## 直接查看成果
 
@@ -61,6 +62,8 @@ make report
 python3 scripts/benchmark.py --repeats 20 --steps 40 --iterations 100000 --delay-ms 100
 # 同环境重新编译历史基线与优化版，再比较调度和 I/O 场景
 make perf-check
+# 以第一轮优化为冻结基线，比较就绪位图与共享 fd 等待表
+make wait-perf-check
 ```
 
 所有测量子进程继承同一个虚拟 CPU 亲和性，不需要管理员权限。只在目标 Linux 环境执行 C 实验；Python 数据校验测试可在主机运行。
@@ -115,9 +118,11 @@ mkdir -p results
 | docs/STAGE2.md | 第二阶段结果、方法和限制 |
 | docs/OPTIMIZATION.md | 运行时优化、严格回归和同环境对照结果 |
 | scripts/measure_optimization.py | 历史基线与优化版的同环境测量 |
+| docs/WAIT_OPTIMIZATION.md | 第二轮位图、等待表与增量对照 |
+| scripts/measure_wait_optimization.py | 第一轮与第二轮的同环境测量 |
 | docs/PROVENANCE.md | 课程来源、自主实现范围与资料 |
 | docs/NEXT_STEPS.md | 环境准备和下一步任务 |
 
 ## 后续工作
 
-已完成基础运行时、扩展验收、重复测量、pthread 基线、离线轨迹报告，以及第一轮运行时开销优化。CI 自动在 openEuler 容器和 Ubuntu 上进行严格编译、回归与同环境对照。下一步继续扩大真实工作负载、独立检查资源回收与教学效果，再整理正式技术报告和演示视频。
+已完成基础运行时、扩展验收、重复测量、pthread 基线、离线轨迹报告，以及两轮运行时开销优化。CI 自动在 openEuler 容器和 Ubuntu 上进行严格编译、回归与同环境对照。下一步增加真实服务工作负载、独立检查资源回收与教学效果，再整理正式技术报告和演示视频。
