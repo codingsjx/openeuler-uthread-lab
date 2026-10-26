@@ -3,8 +3,8 @@ CPPFLAGS += -Iinclude
 CFLAGS ?= -O2 -g
 CFLAGS += -std=c11 -Wall -Wextra -Wpedantic
 
-.PHONY: all check benchmark report perf-check clean
-all: build/demo build/test_runtime build/test_trace_limit build/benchmark
+.PHONY: all check benchmark report perf-check wait-perf-check clean
+all: build/demo build/test_runtime build/test_trace_limit build/test_wait_registry build/benchmark
 build:
 	mkdir -p build
 build/demo: src/uthread.c examples/demo.c include/uthread.h | build
@@ -13,6 +13,8 @@ build/test_runtime: src/uthread.c tests/test_runtime.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_runtime.c -o $@
 build/test_trace_limit: src/uthread.c tests/test_trace_limit.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DUT_TRACE_LIMIT=16 src/uthread.c tests/test_trace_limit.c -o $@
+build/test_wait_registry: src/uthread.c tests/test_wait_registry.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_wait_registry.c -Wl,--wrap=poll -o $@
 build/benchmark: src/uthread.c examples/benchmark.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) -pthread src/uthread.c examples/benchmark.c -o $@
 build/benchmark-baseline: benchmarks/baseline/uthread.c examples/benchmark.c include/uthread.h | build
@@ -21,6 +23,12 @@ build/scheduler-baseline: benchmarks/baseline/uthread.c examples/scheduler_bench
 	$(CC) $(CPPFLAGS) $(CFLAGS) benchmarks/baseline/uthread.c examples/scheduler_benchmark.c -o $@
 build/scheduler-optimized: src/uthread.c examples/scheduler_benchmark.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DHAVE_TRACE_OPTIONS src/uthread.c examples/scheduler_benchmark.c -o $@
+build/scheduler-round1: benchmarks/round1/uthread.c examples/scheduler_benchmark.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DHAVE_TRACE_OPTIONS benchmarks/round1/uthread.c examples/scheduler_benchmark.c -o $@
+build/wait-round1: benchmarks/round1/uthread.c examples/wait_benchmark.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) benchmarks/round1/uthread.c examples/wait_benchmark.c -o $@
+build/wait-optimized: src/uthread.c examples/wait_benchmark.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c examples/wait_benchmark.c -o $@
 check: all
 	python3 scripts/run_experiments.py
 benchmark: all
@@ -29,5 +37,7 @@ report:
 	python3 scripts/make_report.py
 perf-check: all build/benchmark-baseline build/scheduler-baseline build/scheduler-optimized
 	python3 scripts/measure_optimization.py
+wait-perf-check: all build/scheduler-round1 build/scheduler-optimized build/wait-round1 build/wait-optimized
+	python3 scripts/measure_wait_optimization.py
 clean:
-	rm -f build/demo build/test_runtime build/test_trace_limit build/benchmark build/benchmark-baseline build/scheduler-baseline build/scheduler-optimized
+	rm -f build/demo build/test_runtime build/test_trace_limit build/test_wait_registry build/benchmark build/benchmark-baseline build/scheduler-baseline build/scheduler-optimized build/scheduler-round1 build/wait-round1 build/wait-optimized

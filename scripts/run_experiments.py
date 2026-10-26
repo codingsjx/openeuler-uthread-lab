@@ -27,6 +27,7 @@ def main():
     RESULTS.mkdir(exist_ok=True)
     run(str(ROOT / 'build/test_runtime'))
     run(str(ROOT / 'build/test_trace_limit'))
+    run(str(ROOT / 'build/test_wait_registry'))
     with (ROOT/'build/trace-growth.csv').open(newline='', encoding='utf-8') as f:
         grown = list(csv.DictReader(f))
     assert any(r['event'] == 'mark' and r['detail'] == 'comma,"quote"\nnewline' for r in grown), 'CSV label did not round-trip'
