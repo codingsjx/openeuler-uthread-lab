@@ -70,6 +70,7 @@ int main(void) {
     prepare(1);
     assert(ut_spawn(short_reader,NULL)>=0 && ut_spawn(long_reader,NULL)>=0);
     assert(ut_spawn(delayed_writer,NULL)>=0 && ut_run()==0);
+    fprintf(stderr,"shared wait: finished=%d max_fds=%d\n",finished,max_fds);
     assert(finished==2 && max_fds==1);
     cleanup(1);
     prepare(2);

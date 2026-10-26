@@ -23,7 +23,9 @@ jobs:
       - name: Functional tests and data validation
         run: |
           mkdir -p results
-          make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
+          cc --version > results/ci-check.log
+          cc -dM -E -x c /dev/null | sort >> results/ci-check.log
+          make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' >> results/ci-check.log 2>&1 || { nm build/test_wait_registry >> results/ci-check.log; exit 1; }
           python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
       - name: Same-environment baseline comparison
         run: make perf-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-optimization.log 2>&1
