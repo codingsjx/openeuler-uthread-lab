@@ -113,6 +113,16 @@ int ut_init_ex(enum ut_policy policy, enum ut_trace_mode trace_mode) {
     rt.initialized = 1;
     return 0;
 }
+/* Keep slot-search locals out of the getcontext/returns-twice frame. */
+static int prepare_context(struct task *t, int id) {
+    if (getcontext(&t->ctx) != 0) return -1;
+    t->ctx.uc_stack.ss_sp = t->stack;
+    t->ctx.uc_stack.ss_size = STACK_BYTES;
+    t->ctx.uc_stack.ss_flags = 0;
+    t->ctx.uc_link = &rt.scheduler;
+    makecontext(&t->ctx, (void (*)(void))entry, 1, id);
+    return 0;
+}
 int ut_spawn(ut_fn fn, void *arg) {
     if (!rt.initialized || rt.active || !fn) { errno = EINVAL; return -1; }
     int id = rt.count;
@@ -123,16 +133,11 @@ int ut_spawn(ut_fn fn, void *arg) {
     struct task *t = &rt.tasks[id];
     t->stack = malloc(STACK_BYTES);
     if (!t->stack) return -1;
-    if (getcontext(&t->ctx) != 0) {
+    if (prepare_context(t, id) != 0) {
         int saved = errno; free(t->stack); t->stack = NULL; errno = saved; return -1;
     }
-    t->ctx.uc_stack.ss_sp = t->stack;
-    t->ctx.uc_stack.ss_size = STACK_BYTES;
-    t->ctx.uc_stack.ss_flags = 0;
-    t->ctx.uc_link = &rt.scheduler;
     t->fn = fn; t->arg = arg; t->state = READY; t->saved_errno = 0;
     t->fd = -1; t->wait_error = 0; t->deadline = -1;
-    makecontext(&t->ctx, (void (*)(void))entry, 1, id);
     if (id == rt.count) rt.count++;
     rt.live_count++;
     record(id, EV_READY, RE_SPAWN, NULL);
