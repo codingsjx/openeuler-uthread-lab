@@ -1,0 +1,84 @@
+name: Verify runtime on openEuler
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'examples/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'benchmarks/**'
+      - 'Makefile'
+      - '.gitattributes'
+      - '.github/workflows/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ubuntu-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Functional tests and data validation
+        run: |
+          mkdir -p results
+          make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
+          python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
+      - name: Same-environment baseline comparison
+        run: make perf-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-optimization.log 2>&1
+      - name: Round 2 comparison against frozen round 1
+        run: make wait-perf-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-wait-optimization.log 2>&1
+      - name: Retain real measurements and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-runtime-optimization-${{ github.sha }}
+          path: |
+            results/optimization-20*/
+            results/ci-check.log
+            results/ci-optimization.log
+            results/wait-optimization-20*/
+            results/ci-wait-optimization.log
+          retention-days: 30
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: openeuler/openeuler:24.03-lts-sp3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        timeout-minutes: 5
+        run: |
+          mkdir -p /tmp/ci-repos
+          cat > /tmp/ci-repos/openeuler.repo <<'REPO'
+          [ci-baseos]
+          name=openEuler 24.03 LTS SP3 OS
+          baseurl=https://repo.huaweicloud.com/openeuler/openEuler-24.03-LTS-SP3/OS/$basearch/
+          enabled=1
+          gpgcheck=1
+          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-openEuler
+          REPO
+          dnf --setopt=reposdir=/tmp/ci-repos --setopt=timeout=20 --setopt=retries=1 install -y gcc make python3 glibc-devel git
+      - name: Functional tests and data validation
+        run: |
+          mkdir -p results
+          make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
+          python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
+      - name: Same-environment baseline comparison
+        run: make perf-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-optimization.log 2>&1
+      - name: Round 2 comparison against frozen round 1
+        run: make wait-perf-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-wait-optimization.log 2>&1
+      - name: Retain real measurements and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openeuler-runtime-optimization-${{ github.sha }}
+          path: |
+            results/optimization-20*/
+            results/ci-check.log
+            results/ci-optimization.log
+            results/wait-optimization-20*/
+            results/ci-wait-optimization.log
+          retention-days: 30
