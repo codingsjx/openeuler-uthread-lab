@@ -1,0 +1,176 @@
+{
+  "status": "passed",
+  "environment": {
+    "system": "Linux",
+    "node": "runnervmwuk1x",
+    "release": "7.0.0-1019-azure",
+    "version": "#20-Ubuntu SMP PREEMPT Mon Oct 19 22:41:16 UTC 2026",
+    "machine": "x86_64",
+    "processor": ""
+  },
+  "os_release": {
+    "NAME": "Ubuntu",
+    "ID": "ubuntu",
+    "PRETTY_NAME": "Ubuntu 26.04.1 LTS",
+    "VERSION_ID": "26.04",
+    "VERSION": "26.04.1 LTS (Resolute Raccoon)",
+    "VERSION_CODENAME": "resolute",
+    "ID_LIKE": "debian",
+    "HOME_URL": "https://www.ubuntu.com/",
+    "SUPPORT_URL": "https://help.ubuntu.com/",
+    "BUG_REPORT_URL": "https://bugs.launchpad.net/ubuntu/",
+    "PRIVACY_POLICY_URL": "https://www.ubuntu.com/legal/terms-and-policies/privacy-policy",
+    "UBUNTU_CODENAME": "resolute",
+    "LOGO": "ubuntu-logo"
+  },
+  "source_sha256": {
+    "src/uthread.c": "74c7b69d125161ea8a50cf5413846078afc38a33380ce6110a137c73ea9a41c0",
+    "include/uthread.h": "6fa4cf91b4fb236fd2a751e65c0e6aea4011cf3e4472ebb83b4a10a09e9f3306",
+    "examples/socket_service.c": "71449a5a27c6313cc8d641b78ea1e09aa0ffc127140028ded5929df7fe2fb0b9",
+    "tests/test_lifecycle.c": "106fbdf950fd623a76eb5f2d946e5f4f1c8bb7b3e8abf1c4181a0219aacefeaa",
+    "scripts/validate_service.py": "8f2bced062fc941df70c08ef54fdc4f28702ffb9c353dc09f789e5c23db9f38a",
+    "Makefile": "b425e7772e9e375ae3748c5a9f10a7c3a116a03e87350d94280855423861c668"
+  },
+  "runs": [
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/home/runner/work/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110613Z-c1ae8e/blocking-0.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 300819,
+        "first_reply_us": [
+          300220,
+          300268,
+          300283,
+          300300
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/home/runner/work/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110613Z-c1ae8e/event-0.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 300550,
+        "first_reply_us": [
+          300231,
+          54,
+          64,
+          73
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/home/runner/work/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110613Z-c1ae8e/event-1.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 300558,
+        "first_reply_us": [
+          300217,
+          53,
+          64,
+          74
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/home/runner/work/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110613Z-c1ae8e/blocking-1.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 300791,
+        "first_reply_us": [
+          300207,
+          300227,
+          300242,
+          300277
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/home/runner/work/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110613Z-c1ae8e/blocking-2.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 300864,
+        "first_reply_us": [
+          300236,
+          300257,
+          300273,
+          300285
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/home/runner/work/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110613Z-c1ae8e/event-2.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 300595,
+        "first_reply_us": [
+          300268,
+          77,
+          59,
+          67
+        ]
+      }
+    }
+  ],
+  "lifecycle": {
+    "exit_code": 0,
+    "sample": {
+      "status": "passed",
+      "cycles": 2000,
+      "responses": 16000,
+      "fd_before": 4,
+      "fd_after": 4,
+      "trace_modes": [
+        "full",
+        "off"
+      ]
+    }
+  }
+}

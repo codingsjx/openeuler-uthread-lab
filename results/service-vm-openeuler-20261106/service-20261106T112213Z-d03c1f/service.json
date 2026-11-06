@@ -1,0 +1,169 @@
+{
+  "status": "passed",
+  "environment": {
+    "system": "Linux",
+    "node": "localhost.localdomain",
+    "release": "6.6.0-132.0.0.111.oe2403sp3.x86_64",
+    "version": "#1 SMP Mon Dec 29 23:07:38 CST 2025",
+    "machine": "x86_64",
+    "processor": "x86_64"
+  },
+  "os_release": {
+    "NAME": "openEuler",
+    "ID": "openEuler",
+    "PRETTY_NAME": "openEuler 24.03 (LTS-SP3)",
+    "VERSION": "24.03 (LTS-SP3)",
+    "VERSION_ID": "24.03",
+    "ANSI_COLOR": "0;31"
+  },
+  "source_sha256": {
+    "src/uthread.c": "74c7b69d125161ea8a50cf5413846078afc38a33380ce6110a137c73ea9a41c0",
+    "include/uthread.h": "6fa4cf91b4fb236fd2a751e65c0e6aea4011cf3e4472ebb83b4a10a09e9f3306",
+    "examples/socket_service.c": "71449a5a27c6313cc8d641b78ea1e09aa0ffc127140028ded5929df7fe2fb0b9",
+    "tests/test_lifecycle.c": "106fbdf950fd623a76eb5f2d946e5f4f1c8bb7b3e8abf1c4181a0219aacefeaa",
+    "scripts/validate_service.py": "8f2bced062fc941df70c08ef54fdc4f28702ffb9c353dc09f789e5c23db9f38a",
+    "Makefile": "b425e7772e9e375ae3748c5a9f10a7c3a116a03e87350d94280855423861c668"
+  },
+  "runs": [
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/home/oslab/oslab-project/service-20261106T112207Z-1efad0/uthread-lab/results/service-20261106T112213Z-d03c1f/blocking-0.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 306865,
+        "first_reply_us": [
+          301920,
+          301936,
+          301942,
+          301949
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/home/oslab/oslab-project/service-20261106T112207Z-1efad0/uthread-lab/results/service-20261106T112213Z-d03c1f/event-0.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 326405,
+        "first_reply_us": [
+          322976,
+          900,
+          905,
+          910
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/home/oslab/oslab-project/service-20261106T112207Z-1efad0/uthread-lab/results/service-20261106T112213Z-d03c1f/event-1.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 327833,
+        "first_reply_us": [
+          324694,
+          520,
+          525,
+          753
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/home/oslab/oslab-project/service-20261106T112207Z-1efad0/uthread-lab/results/service-20261106T112213Z-d03c1f/blocking-1.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 310698,
+        "first_reply_us": [
+          304932,
+          304946,
+          305320,
+          305328
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/home/oslab/oslab-project/service-20261106T112207Z-1efad0/uthread-lab/results/service-20261106T112213Z-d03c1f/blocking-2.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 308822,
+        "first_reply_us": [
+          302173,
+          302191,
+          302200,
+          302211
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/home/oslab/oslab-project/service-20261106T112207Z-1efad0/uthread-lab/results/service-20261106T112213Z-d03c1f/event-2.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 301698,
+        "first_reply_us": [
+          301361,
+          143,
+          131,
+          139
+        ]
+      }
+    }
+  ],
+  "lifecycle": {
+    "exit_code": 0,
+    "sample": {
+      "status": "passed",
+      "cycles": 2000,
+      "responses": 16000,
+      "fd_before": 4,
+      "fd_after": 4,
+      "trace_modes": [
+        "full",
+        "off"
+      ]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "source_commit": "9864712",
+  "run_url": "https://github.com/codingsjx/openeuler-uthread-lab/actions/runs/42207684129",
+  "artifacts": [
+    {
+      "id": 13498155426,
+      "name": "openeuler-runtime-optimization-98647128ddab9ab9163010eb6fb682c07597d2d7",
+      "digest": "sha256:a947ec156be0686c14e73868176245151ec0bb090a728ef6437346eef7f2f28f"
+    },
+    {
+      "id": 13497406452,
+      "name": "ubuntu-runtime-optimization-98647128ddab9ab9163010eb6fb682c07597d2d7",
+      "digest": "sha256:b658f241f7b307fcddc993eb7913a35a8100a7245e73e9be770c5101e9c6d3c9"
+    }
+  ]
+}

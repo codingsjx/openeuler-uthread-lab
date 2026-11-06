@@ -1,0 +1,169 @@
+{
+  "status": "passed",
+  "environment": {
+    "system": "Linux",
+    "node": "dc1e5ef204e1",
+    "release": "7.0.0-1019-azure",
+    "version": "#20-Ubuntu SMP PREEMPT Mon Oct 19 22:41:16 UTC 2026",
+    "machine": "x86_64",
+    "processor": "x86_64"
+  },
+  "os_release": {
+    "NAME": "openEuler",
+    "ID": "openEuler",
+    "PRETTY_NAME": "openEuler 24.03 (LTS-SP3)",
+    "VERSION": "24.03 (LTS-SP3)",
+    "VERSION_ID": "24.03",
+    "ANSI_COLOR": "0;31"
+  },
+  "source_sha256": {
+    "src/uthread.c": "74c7b69d125161ea8a50cf5413846078afc38a33380ce6110a137c73ea9a41c0",
+    "include/uthread.h": "6fa4cf91b4fb236fd2a751e65c0e6aea4011cf3e4472ebb83b4a10a09e9f3306",
+    "examples/socket_service.c": "71449a5a27c6313cc8d641b78ea1e09aa0ffc127140028ded5929df7fe2fb0b9",
+    "tests/test_lifecycle.c": "106fbdf950fd623a76eb5f2d946e5f4f1c8bb7b3e8abf1c4181a0219aacefeaa",
+    "scripts/validate_service.py": "8f2bced062fc941df70c08ef54fdc4f28702ffb9c353dc09f789e5c23db9f38a",
+    "Makefile": "b425e7772e9e375ae3748c5a9f10a7c3a116a03e87350d94280855423861c668"
+  },
+  "runs": [
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/__w/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110642Z-c9caff/blocking-0.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 300796,
+        "first_reply_us": [
+          300201,
+          300219,
+          300236,
+          300252
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/__w/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110642Z-c9caff/event-0.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 300473,
+        "first_reply_us": [
+          300175,
+          37,
+          48,
+          58
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/__w/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110642Z-c9caff/event-1.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 300546,
+        "first_reply_us": [
+          300225,
+          40,
+          53,
+          64
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/__w/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110642Z-c9caff/blocking-1.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 300741,
+        "first_reply_us": [
+          300204,
+          300219,
+          300236,
+          300250
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "blocking",
+        "/__w/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110642Z-c9caff/blocking-2.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "blocking",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 0,
+        "elapsed_us": 300768,
+        "first_reply_us": [
+          300237,
+          300253,
+          300271,
+          300285
+        ]
+      }
+    },
+    {
+      "argv": [
+        "./build/socket_service",
+        "event",
+        "/__w/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110642Z-c9caff/event-2.csv"
+      ],
+      "exit_code": 0,
+      "sample": {
+        "mode": "event",
+        "status": "passed",
+        "responses": 32,
+        "fast_responses_before_slow_request": 24,
+        "elapsed_us": 300548,
+        "first_reply_us": [
+          300230,
+          41,
+          55,
+          66
+        ]
+      }
+    }
+  ],
+  "lifecycle": {
+    "exit_code": 0,
+    "sample": {
+      "status": "passed",
+      "cycles": 2000,
+      "responses": 16000,
+      "fd_before": 4,
+      "fd_after": 4,
+      "trace_modes": [
+        "full",
+        "off"
+      ]
+    }
+  }
+}
