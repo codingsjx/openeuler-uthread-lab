@@ -3,7 +3,7 @@ CPPFLAGS += -Iinclude
 CFLAGS ?= -O2 -g
 CFLAGS += -std=c11 -Wall -Wextra -Wpedantic
 
-.PHONY: all check benchmark report perf-check wait-perf-check clean
+.PHONY: all check benchmark report perf-check wait-perf-check service-check clean
 all: build/demo build/test_runtime build/test_trace_limit build/test_wait_registry build/benchmark
 build:
 	mkdir -p build
@@ -35,9 +35,16 @@ benchmark: all
 	python3 scripts/benchmark.py
 report:
 	python3 scripts/make_report.py
+build/socket_service: src/uthread.c examples/socket_service.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c examples/socket_service.c -o $@
+build/test_lifecycle: src/uthread.c tests/test_lifecycle.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_lifecycle.c -o $@
+service-check: build/socket_service build/test_lifecycle
+	python3 scripts/validate_service.py
 perf-check: all build/benchmark-baseline build/scheduler-baseline build/scheduler-optimized
 	python3 scripts/measure_optimization.py
 wait-perf-check: all build/scheduler-round1 build/scheduler-optimized build/wait-round1 build/wait-optimized
 	python3 scripts/measure_wait_optimization.py
 clean:
+	rm -f build/socket_service build/test_lifecycle
 	rm -f build/demo build/test_runtime build/test_trace_limit build/test_wait_registry build/benchmark build/benchmark-baseline build/scheduler-baseline build/scheduler-optimized build/scheduler-round1 build/wait-round1 build/wait-optimized

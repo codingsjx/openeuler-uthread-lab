@@ -2,6 +2,8 @@
 
 一个可在 openEuler 中构建、运行和复现实验的 C 教学原型：展示协作式用户线程的调度，以及阻塞读、事件驱动等待和 pthread 的行为差异。
 
+参赛准备见 [推进清单](docs/COMPETITION_PLAN.md)。本优化分支新增 [socket 场景及生命周期验证](docs/SERVICE_VALIDATION.md)，运行 `make service-check`。
+
 **先确认你要看什么：本仓库是用户级线程专题项目；全部 24 项课程作业另有独立实验包。** 课程包的基础任务、拓展验收和开源贡献状态见 [课程实验入口](docs/COURSE_STATUS.md)。
 
 ## 分支与当前进度

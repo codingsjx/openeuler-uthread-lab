@@ -25,6 +25,8 @@ jobs:
           mkdir -p results
           make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
           python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
+      - name: Socket service and lifecycle evidence
+        run: make service-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-service.log 2>&1
       - name: Same-environment baseline comparison
         run: make perf-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-optimization.log 2>&1
       - name: Round 2 comparison against frozen round 1
@@ -37,6 +39,8 @@ jobs:
           path: |
             results/optimization-20*/
             results/ci-check.log
+            results/service-20*/
+            results/ci-service.log
             results/ci-optimization.log
             results/wait-optimization-20*/
             results/ci-wait-optimization.log
@@ -66,6 +70,8 @@ jobs:
           mkdir -p results
           make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
           python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
+      - name: Socket service and lifecycle evidence
+        run: make service-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-service.log 2>&1
       - name: Same-environment baseline comparison
         run: make perf-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-optimization.log 2>&1
       - name: Round 2 comparison against frozen round 1
@@ -78,6 +84,8 @@ jobs:
           path: |
             results/optimization-20*/
             results/ci-check.log
+            results/service-20*/
+            results/ci-service.log
             results/ci-optimization.log
             results/wait-optimization-20*/
             results/ci-wait-optimization.log
