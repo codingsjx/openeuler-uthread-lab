@@ -30,4 +30,12 @@ make service-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror'
 
 源码 `9864712` 的 [CI](https://github.com/codingsjx/openeuler-uthread-lab/actions/runs/42207684129) 在 openEuler 24.03 LTS-SP3 容器和 Ubuntu 均通过严格编译、既有回归、两套优化对照及新实验。每套环境三次 blocking 均观察到 0 条提前响应，三次 event 均为 24 条；每次全部 32 条回复及客户端校验通过。每套环境的生命周期验证均完成 2000 轮、16000 条消息，fd 数由 4 恢复到 4。
 
-原始 JSON、CSV 和服务日志保存在 [CI 证据目录](../results/service-ci-20261106/)。这是 CI 结果，本机虚拟机本轮仍待恢复登录后实测；不能将它描述为本机结果。
+原始 JSON、CSV 和服务日志保存在 [CI 证据目录](../results/service-ci-20261106/)，与下述本机结果分别保存。
+
+## 2026-11-06 本机 openEuler 虚拟机
+
+本机恢复登录后，以 oslab（UID 1000）在独立目录部署 `fc71f4b`，通过 make check、四项 Python 报告测试和 make service-check，C 编译启用 -Werror。运行环境为 openEuler 24.03 LTS-SP3，内核 6.6.0-132.0.0.111，VirtualBox 2 vCPU、4 GiB。
+
+六次场景全部通过 32 条回复及客户端退出校验；三次 blocking 提前回复数均为 0，三次 event 均为 24。生命周期完成 2000 轮、16000 条消息，fd 数由 4 恢复到 4。这支持当前受控场景的等待隔离和重复生命周期结论，不能证明一般网络服务性能或不存在堆泄漏。
+
+原始数据、构建日志、环境、归档哈希及命令状态在 [本机证据目录](../results/service-vm-openeuler-20261106/)。源码部署在客户机 `/home/oslab/oslab-project/service-20261106T112207Z-1efad0/uthread-lab`，没有覆盖课程目录或之前的实验结果。
