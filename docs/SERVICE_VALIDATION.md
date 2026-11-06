@@ -25,3 +25,9 @@ make service-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror'
 这验证重复生命周期、等待状态重置和应用 fd 回收，没有证明堆内存不存在泄漏，也不是长时间生产稳定性认证。更长时间压力和内存泄漏检查仍需另外验证。
 
 程序设置超时，控制脚本超时后终止整个子进程组，避免残留客户端。编译/运行失败应检查日志，不能把脚本存在写成目标虚拟机已经验证。
+
+## 2026-11-06 CI 记录
+
+源码 `9864712` 的 [CI](https://github.com/codingsjx/openeuler-uthread-lab/actions/runs/42207684129) 在 openEuler 24.03 LTS-SP3 容器和 Ubuntu 均通过严格编译、既有回归、两套优化对照及新实验。每套环境三次 blocking 均观察到 0 条提前响应，三次 event 均为 24 条；每次全部 32 条回复及客户端校验通过。每套环境的生命周期验证均完成 2000 轮、16000 条消息，fd 数由 4 恢复到 4。
+
+原始 JSON、CSV 和服务日志保存在 [CI 证据目录](../results/service-ci-20261106/)。这是 CI 结果，本机虚拟机本轮仍待恢复登录后实测；不能将它描述为本机结果。
