@@ -37,4 +37,4 @@
 
 当前优先验证“慢客户端等待时，其他请求是否继续响应”及重复运行后的回收，随后整理教学案例和报告。epoll 和更高任务数按实际需求再评估。
 
-新实验在 `perf/runtime-overhead`，见 [实验说明](SERVICE_VALIDATION.md)。本文不代表已经完成报名或正式提交。
+实验入口在当前机制版本，开发分支为 `perf/runtime-overhead`，见 [实验说明](SERVICE_VALIDATION.md)。本文不代表已经完成报名或正式提交。

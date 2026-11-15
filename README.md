@@ -8,25 +8,25 @@
 
 图中数据来自 CI 的功能用例，不是性能测量。界面支持本地导入 CSV、按事件播放、任务筛选和决策定位，见 [诊断台](tools/trace_viewer.html)。GitHub 不执行 HTML，需下载整个仓库或 ZIP 后打开该文件。
 
-参赛准备见 [推进清单](docs/COMPETITION_PLAN.md)。本优化分支新增 [socket 场景及生命周期验证](docs/SERVICE_VALIDATION.md)，运行 `make service-check`。
+参赛准备见 [推进清单](docs/COMPETITION_PLAN.md)。另有历史 [socket 场景及生命周期验证](docs/SERVICE_VALIDATION.md)，运行 `make service-check`。
 
 **先确认你要看什么：本仓库是用户级线程专题项目；全部 24 项课程作业另有独立实验包。** 课程包的基础任务、拓展验收和开源贡献状态见 [课程实验入口](docs/COURSE_STATUS.md)。
 
-## 分支与当前进度
+## 版本与入口
 
-截至 2026-10-30，GitHub 首页默认显示 `main`。优化代码位于 `perf/runtime-overhead`，仍在 [PR #1](https://github.com/codingsjx/openeuler-uthread-lab/pull/1) 中，尚未合并。克隆默认分支后，不能直接使用优化分支才有的命令或接口。
+本页说明包含 TCP 准入策略、协作取消、栈保护和并发诊断台的机制版本。已有旧克隆请先保留个人改动并更新代码；历史提交与历史性能数据仍保留，不把旧测量当作新策略的性能结论。
 
-| 版本 | 已包含的内容 | 从哪里看 |
-| --- | --- | --- |
-| `main` | 基础运行时、调度/I/O 演示、并发读者和信号测试、pthread 对照、重复实验、离线报告 | 本页以下的快速开始；[第二阶段结果](docs/STAGE2.md) |
-| `perf/runtime-overhead` | main 的功能，加上紧凑/按需日志、统计接口、槽位复用、errno 隔离、就绪位图、持久去重等待表 | [优化源码](https://github.com/codingsjx/openeuler-uthread-lab/tree/perf/runtime-overhead)；[优化说明](https://github.com/codingsjx/openeuler-uthread-lab/blob/perf/runtime-overhead/docs/OPTIMIZATION.md) |
-| 独立课程实验包 | 24 项基础任务、逐项拓展、课程报告及原始日志 | [课程实验入口与完成状态](docs/COURSE_STATUS.md)；不包含在本仓库的克隆中 |
+| 内容 | 入口 |
+| --- | --- |
+| 当前运行时、TCP 服务与诊断工具 | 以下快速开始；[接口](include/uthread.h)、[实现](src/uthread.c)、[TCP 服务](examples/tcp_echo.c) |
+| 早期调度、等待与优化数据 | [第二阶段](docs/STAGE2.md)、[运行时优化](docs/OPTIMIZATION.md)、[等待表优化](docs/WAIT_OPTIMIZATION.md)；均按各自记录版本解读 |
+| 独立的 24 项课程实验包 | [课程实验入口](docs/COURSE_STATUS.md)，不包含在本仓库的克隆中 |
 
-建议队友先运行最小验收，再读 [设计说明](docs/DESIGN.md)、[接口](include/uthread.h) 和 [核心代码](src/uthread.c)。需要研究最新优化时，再切换优化分支。
+建议队友先运行基本演示，再阅读接口与 TCP 策略。开发分支为 `perf/runtime-overhead`，默认分支作为整合入口；协作修改请使用个人分支与 PR。
 
 ## 快速开始
 
-已验证的环境是 openEuler 24.03 LTS-SP3 x86_64、GCC 12.3.1、Python 3.11。优化分支也在 Ubuntu CI 中验证过。实验要求 Linux、glibc 的 ucontext、C11 编译器、make 和 Python 3；C 程序应在 Linux 客户机终端运行，Windows MinGW 不属于验证环境。
+已验证的环境是 openEuler 24.03 LTS-SP3 x86_64、GCC 12.3.1、Python 3.11。当前机制版本在 Ubuntu 与 openEuler 容器 CI 中通过编译和功能检查；上述本机工具版本对应历史本机记录。实验要求 Linux、glibc 的 ucontext、C11 编译器、make 和 Python 3；C 程序应在 Linux 客户机终端运行，Windows MinGW 不属于验证环境。
 
 ```sh
 # 仅安装依赖时需要 sudo
@@ -44,7 +44,7 @@ make check
 
 ## 运行四个演示
 
-### 新增 TCP 服务（优化分支）
+### TCP 服务
 
 ```sh
 make build/tcp_echo
@@ -60,7 +60,7 @@ mkdir -p results
 
 回收策略仅在满载时启用：先用一个有界候选 socket 等待最多 50 ms 首字节；新连接没有请求数据时不回收旧连接。候选旧连接须确实处于运行时 I/O 等待、超过无进展阈值，且属于从未提交过数据的读等待，或写侧背压等待。选择符合条件且最久无进展的连接，请求协作取消，等其清理后才复用容量。已有过数据交互、当前只是在等待下一条请求的空闲会话不在回收范围。
 
-阈值是可调策略，不代表识别恶意客户端；正常的慢接收者也可能被回收。没有合适候选时仍拒绝新连接，不能保证快请求必然成功。每次只保留一个候选 socket，不建立无界队列。
+阈值是可调策略，不代表识别恶意客户端；正常的慢接收者也可能被回收。没有合适候选时仍拒绝新连接，不能保证快请求必然成功。每次只保留一个候选 socket，不建立无界队列。探测期间其他已准入任务可以继续运行，但接收任务最多会等待该候选 50 ms；这也是该策略的代价。
 
 参数依次为：端口、累计 accept 数上限（含拒绝的连接，0 为持续运行）、活动连接容量（1～31）、空闲/写缓冲排空超时毫秒数、单连接最长存活毫秒数、可选轨迹路径。不传轨迹路径时不记录轨迹。默认只监听 `127.0.0.1`，按 Ctrl+C 退出。
 
@@ -141,7 +141,7 @@ Windows 上也可下载 ZIP 后直接用浏览器打开已随仓库保存的 `re
 
 [离线报告截图](docs/stage2-report.png) · [第二阶段实验方法与限制](docs/STAGE2.md)
 
-## 使用优化版
+## 开发分支与可选工具
 
 如果已有本地修改，先用 `git status` 确认并保留自己的工作，再切换分支。
 
@@ -158,7 +158,7 @@ make perf-check
 make wait-perf-check
 ```
 
-这两个 perf 目标仅在优化分支存在。它们分别重编译冻结基线和优化版，核对工作量，保留样本、环境和源码哈希。主比较开启完整记录，无记录模式单独列示。
+本版本提供这两个可选 perf 目标，本轮开发没有执行它们。它们分别重编译冻结基线和优化版，核对工作量，保留样本、环境和源码哈希。主比较开启完整记录，无记录模式单独列示。
 
 最新本机数据不是所有场景都更快：2026-10-29 的 openEuler 虚拟机中，第二轮相对第一轮的 31 读者共享管道基准中位数下降 42.35%，但纯调度的一些场景变慢；当前版本相对最初原版的 32 任务完整记录中位数增加约 2.64%。微基准不能替代真实服务的吞吐或尾延迟结论。
 
@@ -195,7 +195,7 @@ stateDiagram-v2
 | `ut_mark(label)` / `ut_trace_write(path)` | 记录标记并在运行结束后导出 CSV |
 | `ut_destroy()` | 回收运行时资源 |
 
-优化分支额外提供 `ut_init_ex` 和 `ut_get_stats`：可显式关闭记录、读取调度/poll/日志统计；关闭记录时导出返回 ENOTSUP。新增 `ut_write` 以 POLLOUT 等待并返回部分写入长度，`ut_accept` 以 POLLIN 等待并返回已设置 O_NONBLOCK、FD_CLOEXEC 的连接。三个 I/O 接口均要求非阻塞 fd，每次调用使用同一期限；多次部分写入的总期限由调用者维护。main 没有这些额外接口。
+本版本提供 `ut_init_ex` 和 `ut_get_stats`：可显式关闭记录、读取调度/poll/日志统计；关闭记录时导出返回 ENOTSUP。新增 `ut_write` 以 POLLOUT 等待并返回部分写入长度，`ut_accept` 以 POLLIN 等待并返回已设置 O_NONBLOCK、FD_CLOEXEC 的连接。三个 I/O 接口均要求非阻塞 fd，每次调用使用同一期限；多次部分写入的总期限由调用者维护。旧版课程起步代码没有这些额外接口。
 
 优化版提供 `ut_spawn_task` 返回包含代次的任务句柄；`ut_cancel` 校验句柄，防止旧句柄取消复用后的任务。等待中的 I/O 被唤醒并返回 ECANCELED，后续运行时 I/O 也会检查取消；计算任务可调用 `ut_cancelled` 自行退出。它不强制跳过任务清理，资源释放仍由任务负责。`ut_get_task_info` 允许查询受代次校验的等待快照。
 
@@ -223,9 +223,9 @@ stateDiagram-v2
 
 ## 队友如何协作
 
-1. 先复现 `make check`，确认使用的是 main 还是优化分支。
+1. 先复现 `make check`，确认克隆的是本页所述机制版本。
 2. 修改调度/等待机制前，结合接口和设计说明阅读代码；做实验时保留命令、参数、环境、JSON 与 CSV。
-3. 从要修改的版本创建自己的分支，提交改动后发起 PR。优化版改动以 `perf/runtime-overhead` 为 base；主线说明改动以 `main` 为 base。具备 Write 权限可推送个人分支，否则使用 fork。
+3. 从要修改的版本创建自己的分支，提交改动后发起 PR。日常修改以 `main` 为 base；继续特定开发分支的工作时再选择对应 base。具备 Write 权限可推送个人分支，否则使用 fork。
 4. PR 写清问题、行为变化和实际验证。建议分别承担实现、实验复核、报告解释等工作，分工由队伍自行确定。
 
 提交前至少执行：
@@ -239,7 +239,7 @@ python3 -m unittest discover -s tests -p test_reporting.py -v
 
 | 现象 | 处理方式 |
 | --- | --- |
-| `make: No rule to make target perf-check` | 当前在 main；切到优化分支后再运行 |
+| `make: No rule to make target perf-check` | 当前是旧版本；更新到本页版本后再运行 |
 | 找不到 `ucontext.h` 或 glibc 开发文件 | 在 openEuler 中确认 gcc、glibc-devel 已安装 |
 | Windows 上验收提示 Linux required | 将源码放进 Linux 虚拟机；Windows 可阅读文档和离线 HTML |
 | `ut_read` 返回 EINVAL | 检查调用位置、超时参数，以及 fd 是否为 O_NONBLOCK |
