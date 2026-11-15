@@ -76,10 +76,11 @@ static void timeout_writer(void *arg) {
     assert(ut_write(pair[0], "X", 1, 5) == -1 && errno == ETIMEDOUT);
 }
 static void partial_writer(void *arg) {
-    (void)arg; char bytes[65536]; memset(bytes, 'P', sizeof bytes);
+    /* Two 64 KiB scratch buffers do not fit on a 128 KiB coroutine stack. */
+    static char bytes[65536], received[65536];
+    (void)arg; memset(bytes, 'P', sizeof bytes);
     ssize_t n = ut_write(pair[0], bytes, sizeof bytes, 1000);
     assert(n > 0 && n < (ssize_t)sizeof bytes);
-    char received[65536];
     ssize_t count = read(pair[1], received, sizeof received);
     assert(count == n);
     for (ssize_t i = 0; i < n; i++) assert(received[i] == 'P');
