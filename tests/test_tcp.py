@@ -186,6 +186,21 @@ class TCPTests(unittest.TestCase):
             self.assertEqual(stopped['reclaimed'], 0)
             self.assertEqual(stopped['capacity_rejected'], 1)
 
+    def test_probation_without_request_does_not_evict(self):
+        with server(2, 1, idle_ms=5000, lifetime_ms=20000,
+                    admission='reclaim-stalled', stall_ms=1) as (process, address):
+            with socket.create_connection(address, timeout=5) as held:
+                time.sleep(0.1)
+                with socket.create_connection(address, timeout=5) as silent_newcomer:
+                    self.assertEqual(silent_newcomer.recv(1), b'')
+                held.sendall(b'S')
+                self.assertEqual(held.recv(1), b'S')
+                held.shutdown(socket.SHUT_WR)
+                self.assertEqual(held.recv(1), b'')
+            stopped = self.finish(process)
+            self.assertEqual(stopped['reclaimed'], 0)
+            self.assertEqual(stopped['capacity_rejected'], 1)
+
     def test_reclaim_backpressured_writer(self):
         with server(2, 1, idle_ms=5000, lifetime_ms=20000,
                     admission='reclaim-stalled', stall_ms=10) as (process, address), socket.socket() as slow:

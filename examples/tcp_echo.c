@@ -136,6 +136,10 @@ static int reclaim_candidate(void) {
             now - connection->last_progress < stall_ms ||
             ut_get_task_info(connection->task, &info) || info.state != UT_TASK_WAIT_IO) continue;
         if (!(info.events & POLLOUT) && !((info.events & POLLIN) && !connection->bytes_read)) continue;
+        /* A runtime waiter may have become ready since the last scheduler poll.
+         * Do not reclaim a peer that can already make progress in the kernel. */
+        struct pollfd readiness = {.fd=connection->fd, .events=info.events};
+        if (poll(&readiness, 1, 0) != 0) continue;
         if (candidate < 0 || connection->last_progress < connections[candidate].last_progress) candidate = i;
     }
     return candidate;
