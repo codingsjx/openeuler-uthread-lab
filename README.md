@@ -150,14 +150,14 @@ make wait-perf-check
 
 ## 运行时机制与接口
 
-单个内核线程承载多个协作式用户任务，每个任务有独立栈和 ucontext。任务主动 yield 后返回调度器；`ut_read` 等待时登记描述符，由 poll 就绪或超时后恢复。所有 READY 任务耗尽时，调度器才阻塞等待 I/O。
+单个内核线程承载多个协作式用户任务，每个任务有独立栈和 ucontext。任务主动 yield 后返回调度器；读、写、accept 等待时登记描述符及方向，由 poll 对应方向就绪或超时后恢复。所有 READY 任务耗尽时，调度器才阻塞等待 I/O。
 
 ```mermaid
 stateDiagram-v2
     [*] --> READY: ut_spawn
     READY --> RUNNING: 调度器选择
     RUNNING --> READY: ut_yield
-    RUNNING --> WAIT_IO: ut_read 遇到 EAGAIN
+    RUNNING --> WAIT_IO: read/write/accept 遇到 EAGAIN
     WAIT_IO --> READY: I/O 就绪或超时
     RUNNING --> DONE: 函数返回
     DONE --> [*]
@@ -173,7 +173,7 @@ stateDiagram-v2
 | `ut_mark(label)` / `ut_trace_write(path)` | 记录标记并在运行结束后导出 CSV |
 | `ut_destroy()` | 回收运行时资源 |
 
-优化分支额外提供 `ut_init_ex` 和 `ut_get_stats`：可显式关闭记录、读取调度/poll/日志统计；关闭记录时导出返回 ENOTSUP。main 没有这两个接口。
+优化分支额外提供 `ut_init_ex` 和 `ut_get_stats`：可显式关闭记录、读取调度/poll/日志统计；关闭记录时导出返回 ENOTSUP。新增 `ut_write` 以 POLLOUT 等待并返回部分写入长度，`ut_accept` 以 POLLIN 等待并返回已设置 O_NONBLOCK、FD_CLOEXEC 的连接。三个 I/O 接口均要求非阻塞 fd，每次调用使用同一期限；多次部分写入的总期限由调用者维护。main 没有这些额外接口。
 
 原型采用 128 KiB 固定任务栈，最多 32 个任务；优化版可在批次间复用已完成的槽位。它不提供多核并行、抢占、任意阻塞调用拦截、普通磁盘异步化或栈保护页。长时间不主动让出的任务仍会阻止其他任务推进。ucontext 依赖具体 Linux/libc，当前没有其他架构的实测保证。
 
