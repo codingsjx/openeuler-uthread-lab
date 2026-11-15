@@ -250,6 +250,10 @@ int main(int argc, char **argv) {
         sigaction(SIGPIPE, &ignore, NULL)) return 1;
     listener = socket(AF_INET, SOCK_STREAM, 0);
     if (listener < 0) { perror("socket"); return 1; }
+    int reuse = 1;
+    if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof reuse)) {
+        perror("SO_REUSEADDR"); close(listener); return 1;
+    }
     struct sockaddr_in address = {.sin_family = AF_INET, .sin_port = htons((uint16_t)port)};
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     int flags = fcntl(listener, F_GETFL), descriptor_flags = fcntl(listener, F_GETFD);
