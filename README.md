@@ -1,6 +1,8 @@
-# openEuler 用户级线程调度与 I/O 阻塞行为实验系统
+# openEuler 用户级并发运行时与慢连接隔离实验系统
 
 一个可在 openEuler 中构建、运行和复现实验的 C 教学原型：展示协作式用户线程的调度，以及阻塞读、事件驱动等待和 pthread 的行为差异。
+
+2026-11-15：优化分支进一步加入非阻塞写、连接接收、读写方向隔离，以及带资源限制的 TCP echo 服务。开发重点是慢连接等待与资源回收；尚未宣称生产可用或性能提升。
 
 参赛准备见 [推进清单](docs/COMPETITION_PLAN.md)。本优化分支新增 [socket 场景及生命周期验证](docs/SERVICE_VALIDATION.md)，运行 `make service-check`。
 
@@ -37,6 +39,42 @@ make check
 运行本项目不需要 root，不需要安装内核模块、eBPF 或容器运行时。这些是独立课程包的实验内容。
 
 ## 运行四个演示
+
+### 新增 TCP 服务（优化分支）
+
+```sh
+make build/tcp_echo
+mkdir -p results
+./build/tcp_echo 8080 0 8 500 5000 results/tcp.csv
+```
+
+参数依次为：端口、累计连接数上限（0 为持续运行）、工作任务数、空闲/写缓冲排空超时毫秒数、单连接最长存活毫秒数、可选轨迹路径。不传轨迹路径时不记录轨迹。默认只监听 `127.0.0.1`，按 Ctrl+C 退出。
+
+另开 Linux 终端发送请求：
+
+```sh
+python3 - <<'PY'
+import socket
+with socket.create_connection(('127.0.0.1', 8080)) as connection:
+    connection.sendall(b'hello')
+    connection.shutdown(socket.SHUT_WR)
+    chunks = []
+    while True:
+        block = connection.recv(4096)
+        if not block:
+            break
+        chunks.append(block)
+    print(b''.join(chunks))
+PY
+```
+
+每个活动连接只有一个 4096 字节应用缓冲区；未写完时暂停继续读取。默认最多 8 个活动连接，累计写出 16 KiB 后主动让出执行机会，并设置读空闲、写缓冲排空与连接总寿命期限。轨迹区分 `read_eagain`、`write_eagain`、`accept_eagain`、预算让出和不同超时原因。socket 内核缓冲、线程栈和轨迹内存不包含在这个应用缓冲区上限内。
+
+这是 TCP 字节流 echo 示例，不是 HTTP 服务。保持单内核线程、最多 32 个工作任务；没有多核并行或对任意 C 代码的抢占。任务槽已满时，额外连接在有限的内核监听队列等待；此时不保证快客户端仍能被及时接收。库的 `ut_write` 返回部分写入长度，SIGPIPE 策略由调用者决定；示例进程忽略 SIGPIPE，处理 EPIPE。
+
+开发用基本正确性检查为 `make tcp-check`，不包含性能比较。普通 CI 只运行编译和功能检查；原有性能与工作负载测量改为手动工作流的 `measurements` 选项触发。
+
+### 原有调度与 I/O 演示
 
 在项目根目录执行：
 

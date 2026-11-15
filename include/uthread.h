@@ -2,6 +2,7 @@
 #define UTHREAD_LAB_H
 #include <stddef.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 typedef void (*ut_fn)(void *);
 enum ut_policy { UT_ROUND_ROBIN, UT_FIRST_READY };
 enum ut_trace_mode { UT_TRACE_FULL, UT_TRACE_OFF };
@@ -18,6 +19,12 @@ int ut_run(void);
 void ut_yield(void);
 /* fd must already be O_NONBLOCK; timeout_ms >= 0, or -1 for no deadline. */
 ssize_t ut_read(int fd, void *buf, size_t size, int timeout_ms);
+/* POSIX partial-write semantics: returns bytes written, not necessarily size.
+ * Caller owns SIGPIPE policy (e.g. SIG_IGN in a standalone socket service).
+ * One deadline per call; repeated partial writes need a caller-level deadline. */
+ssize_t ut_write(int fd, const void *buf, size_t size, int timeout_ms);
+/* Listening fd must be O_NONBLOCK. Returned fd is O_NONBLOCK and FD_CLOEXEC. */
+int ut_accept(int fd, struct sockaddr *address, socklen_t *length, int timeout_ms);
 void ut_mark(const char *label);
 int ut_trace_write(const char *path);
 int ut_get_stats(struct ut_stats *stats);

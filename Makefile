@@ -3,7 +3,7 @@ CPPFLAGS += -Iinclude
 CFLAGS ?= -O2 -g
 CFLAGS += -std=c11 -Wall -Wextra -Wpedantic
 
-.PHONY: all check benchmark report perf-check wait-perf-check service-check clean
+.PHONY: all check benchmark report perf-check wait-perf-check service-check tcp-check clean
 all: build/demo build/test_runtime build/test_trace_limit build/test_wait_registry build/benchmark
 build:
 	mkdir -p build
@@ -15,6 +15,13 @@ build/test_trace_limit: src/uthread.c tests/test_trace_limit.c include/uthread.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DUT_TRACE_LIMIT=16 src/uthread.c tests/test_trace_limit.c -o $@
 build/test_wait_registry: src/uthread.c tests/test_wait_registry.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_wait_registry.c -Wl,--wrap=poll,--wrap=__poll_chk -o $@
+build/test_write: src/uthread.c tests/test_write.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_write.c -Wl,--wrap=poll,--wrap=__poll_chk -o $@
+build/tcp_echo: src/uthread.c examples/tcp_echo.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c examples/tcp_echo.c -o $@
+tcp-check: build/test_write build/tcp_echo
+	./build/test_write
+	python3 -m unittest discover -s tests -p test_tcp.py -v
 build/benchmark: src/uthread.c examples/benchmark.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) -pthread src/uthread.c examples/benchmark.c -o $@
 build/benchmark-baseline: benchmarks/baseline/uthread.c examples/benchmark.c include/uthread.h | build
@@ -46,5 +53,6 @@ perf-check: all build/benchmark-baseline build/scheduler-baseline build/schedule
 wait-perf-check: all build/scheduler-round1 build/scheduler-optimized build/wait-round1 build/wait-optimized
 	python3 scripts/measure_wait_optimization.py
 clean:
+	rm -f build/tcp_echo build/test_write
 	rm -f build/socket_service build/test_lifecycle
 	rm -f build/demo build/test_runtime build/test_trace_limit build/test_wait_registry build/benchmark build/benchmark-baseline build/scheduler-baseline build/scheduler-optimized build/scheduler-round1 build/wait-round1 build/wait-optimized

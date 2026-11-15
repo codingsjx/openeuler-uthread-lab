@@ -23,10 +23,11 @@
 enum state { READY, RUNNING, WAIT_IO, DONE };
 enum event_kind { EV_READY, EV_RUNNING, EV_WAIT, EV_DONE, EV_MARK };
 enum event_reason { RE_SPAWN, RE_YIELD, RE_DISPATCH, RE_IO, RE_TIMEOUT,
-                    RE_RETURN, RE_EAGAIN, RE_CONTINUE };
+                    RE_RETURN, RE_EAGAIN, RE_CONTINUE, RE_WRITE_EAGAIN, RE_ACCEPT_EAGAIN };
 static const char *const kind_names[] = {"ready", "running", "wait_io", "done", "mark"};
 static const char *const reason_names[] = {"spawn", "yield", "dispatch", "io_event", "timeout",
-                                          "function_return", "read_eagain", "same_task"};
+                                          "function_return", "read_eagain", "same_task",
+                                          "write_eagain", "accept_eagain"};
 struct task {
     ucontext_t ctx;
     void *stack;
@@ -34,6 +35,7 @@ struct task {
     void *arg;
     enum state state;
     int fd, wait_error, saved_errno;
+    short wait_events;
     int64_t deadline;
 };
 /* Built-in labels use enum values; only user marks need string copying. */
@@ -192,18 +194,20 @@ static int choose(void) {
     uint32_t after = ready & (UINT32_MAX << (rt.cursor + 1));
     return first_bit(after ? after : ready);
 }
-static int register_wait(int id, int fd, int64_t deadline) {
+static int register_wait(int id, int fd, short events, int64_t deadline) {
     int group = 0;
     while (group < rt.wait_groups && rt.wait_fds[group].fd != fd) group++;
     if (group == rt.wait_groups) {
         if (rt.wait_groups == MAX_TASKS) { errno = EOVERFLOW; return -1; }
-        rt.wait_fds[group] = (struct pollfd){.fd=fd, .events=POLLIN};
+        rt.wait_fds[group] = (struct pollfd){.fd=fd};
         rt.wait_masks[group] = 0;
         rt.wait_groups++;
     }
     rt.wait_masks[group] |= task_bit(id);
+    rt.wait_fds[group].events |= events;
     struct task *t = &rt.tasks[id];
     t->fd = fd; t->deadline = deadline; t->wait_error = 0; t->state = WAIT_IO;
+    t->wait_events = events;
     rt.waiting_count++;
     if (deadline >= 0 && (rt.next_deadline < 0 || deadline < rt.next_deadline))
         rt.next_deadline = deadline;
@@ -247,19 +251,29 @@ static int poll_waiters(int may_block) {
         while (mask) {
             int id = first_bit(mask); mask &= mask-1;
             struct task *t = &rt.tasks[id];
-            if (!events && !(t->deadline >= 0 && now >= t->deadline)) continue;
-            t->wait_error = events ? ((events & POLLNVAL) ? EBADF : 0) : ETIMEDOUT;
+            short relevant = events & (t->wait_events | POLLERR | POLLHUP | POLLNVAL);
+            if (!relevant && !(t->deadline >= 0 && now >= t->deadline)) continue;
+            t->wait_error = relevant ? ((relevant & POLLNVAL) ? EBADF : 0) : ETIMEDOUT;
             t->state = READY;
             rt.ready_mask |= task_bit(id);
             rt.wait_masks[group] &= ~task_bit(id);
             rt.waiting_count--; changed = 1;
-            record(id, EV_READY, events ? RE_IO : RE_TIMEOUT, NULL);
+            record(id, EV_READY, relevant ? RE_IO : RE_TIMEOUT, NULL);
         }
         if (!rt.wait_masks[group]) {
             int last = --rt.wait_groups;
             rt.wait_fds[group] = rt.wait_fds[last];
             rt.wait_masks[group] = rt.wait_masks[last];
         } else {
+            /* Removing a writer must also remove POLLOUT interest, otherwise a
+             * readable-only waiter on the same socket would busy-poll. */
+            short interest = 0;
+            uint32_t remaining = rt.wait_masks[group];
+            while (remaining) {
+                int id = first_bit(remaining); remaining &= remaining-1;
+                interest |= rt.tasks[id].wait_events;
+            }
+            rt.wait_fds[group].events = interest;
             group++;
         }
     }
@@ -296,23 +310,67 @@ int ut_run(void) {
     rt.active = 0;
     return 0;
 }
-ssize_t ut_read(int fd, void *buf, size_t size, int timeout_ms) {
+static int check_io(int fd, int timeout_ms) {
     if (!rt.active || rt.current < 0 || timeout_ms < -1) { errno = EINVAL; return -1; }
     int flags = fcntl(fd, F_GETFL);
     if (flags < 0) return -1;
     if (!(flags & O_NONBLOCK)) { errno = EINVAL; return -1; }
+    return 0;
+}
+static int await_io(int fd, short events, int64_t deadline, enum event_reason reason) {
+    if (deadline >= 0 && now_us() >= deadline) { errno = ETIMEDOUT; return -1; }
+    if (register_wait(rt.current, fd, events, deadline)) return -1;
     struct task *t = &rt.tasks[rt.current];
+    record(rt.current, EV_WAIT, reason, NULL);
+    if (swapcontext(&t->ctx, &rt.scheduler) != 0) abort();
+    if (t->wait_error) { errno = t->wait_error; return -1; }
+    return 0;
+}
+/* EINTR also consumes the same call deadline. */
+static int retry_interrupted(int64_t deadline) {
+    if (deadline >= 0 && now_us() >= deadline) { errno = ETIMEDOUT; return -1; }
+    return 0;
+}
+ssize_t ut_read(int fd, void *buf, size_t size, int timeout_ms) {
+    if (check_io(fd, timeout_ms)) return -1;
     int64_t deadline = timeout_ms < 0 ? -1 : now_us() + (int64_t)timeout_ms * 1000;
     for (;;) {
         ssize_t n = read(fd, buf, size);
         if (n >= 0) return n; /* includes EOF */
-        if (errno == EINTR) continue;
+        if (errno == EINTR) { if (retry_interrupted(deadline)) return -1; continue; }
         if (errno != EAGAIN && errno != EWOULDBLOCK) return -1;
-        if (deadline >= 0 && now_us() >= deadline) { errno = ETIMEDOUT; return -1; }
-        if (register_wait(rt.current, fd, deadline)) return -1;
-        record(rt.current, EV_WAIT, RE_EAGAIN, NULL);
-        if (swapcontext(&t->ctx, &rt.scheduler) != 0) abort();
-        if (t->wait_error) { errno = t->wait_error; return -1; }
+        if (await_io(fd, POLLIN, deadline, RE_EAGAIN)) return -1;
+    }
+}
+ssize_t ut_write(int fd, const void *buf, size_t size, int timeout_ms) {
+    if (check_io(fd, timeout_ms)) return -1;
+    int64_t deadline = timeout_ms < 0 ? -1 : now_us() + (int64_t)timeout_ms * 1000;
+    for (;;) {
+        ssize_t n = write(fd, buf, size);
+        if (n >= 0) return n;
+        if (errno == EINTR) { if (retry_interrupted(deadline)) return -1; continue; }
+        if (errno != EAGAIN && errno != EWOULDBLOCK) return -1;
+        if (await_io(fd, POLLOUT, deadline, RE_WRITE_EAGAIN)) return -1;
+    }
+}
+int ut_accept(int fd, struct sockaddr *address, socklen_t *length, int timeout_ms) {
+    if (check_io(fd, timeout_ms)) return -1;
+    int64_t deadline = timeout_ms < 0 ? -1 : now_us() + (int64_t)timeout_ms * 1000;
+    for (;;) {
+        int connection = accept(fd, address, length);
+        if (connection >= 0) {
+            int flags = fcntl(connection, F_GETFL);
+            int descriptor_flags = fcntl(connection, F_GETFD);
+            if (flags < 0 || descriptor_flags < 0 ||
+                fcntl(connection, F_SETFL, flags | O_NONBLOCK) < 0 ||
+                fcntl(connection, F_SETFD, descriptor_flags | FD_CLOEXEC) < 0) {
+                int saved = errno; close(connection); errno = saved; return -1;
+            }
+            return connection;
+        }
+        if (errno == EINTR) { if (retry_interrupted(deadline)) return -1; continue; }
+        if (errno != EAGAIN && errno != EWOULDBLOCK) return -1;
+        if (await_io(fd, POLLIN, deadline, RE_ACCEPT_EAGAIN)) return -1;
     }
 }
 int ut_trace_write(const char *path) {
