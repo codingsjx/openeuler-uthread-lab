@@ -7,15 +7,17 @@ import socket
 import subprocess
 import tempfile
 import unittest
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 @contextlib.contextmanager
-def server(limit, workers=3, trace=None, idle_ms=500, lifetime_ms=3000):
+def server(limit, workers=3, trace=None, idle_ms=500, lifetime_ms=3000, admission='reject', stall_ms=200):
     command = [str(ROOT/'build/tcp_echo'), '0', str(limit), str(workers), str(idle_ms), str(lifetime_ms)]
     if trace is not None:
         command.append(str(trace))
+    command += ['--admission='+admission, '--stall-ms='+str(stall_ms)]
     process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, text=True)
     try:
@@ -58,7 +60,7 @@ class TCPTests(unittest.TestCase):
         stopped = json.loads(output.strip())
         self.assertEqual(stopped['accepted'], stopped['admitted'] + stopped['rejected'])
         self.assertEqual(stopped['admitted'], sum(stopped[key] for key in
-                         ('completed', 'timeouts', 'peer_errors', 'shutdown_closed')))
+                         ('completed', 'timeouts', 'peer_errors', 'shutdown_closed', 'reclaimed')))
         self.assertEqual(stopped['active_remaining'], 0)
         return stopped
 
@@ -128,6 +130,62 @@ class TCPTests(unittest.TestCase):
         with server(0) as (process, _):
             process.terminate()
             self.assertEqual(self.finish(process)['accepted'], 0)
+
+    def test_reclaim_silent_peer_for_ready_request(self):
+        with server(2, 1, idle_ms=5000, lifetime_ms=20000,
+                    admission='reclaim-stalled', stall_ms=1) as (process, address):
+            with socket.create_connection(address, timeout=5) as silent:
+                time.sleep(0.1)  # create a deliberately stale, never-started session
+                self.assertEqual(echo(address, b'replacement'), b'replacement')
+                self.assertEqual(silent.recv(1), b'')
+            stopped = self.finish(process)
+            self.assertEqual(stopped['reclaimed'], 1)
+            self.assertEqual(stopped['completed'], 1)
+            self.assertEqual(stopped['rejected'], 0)
+
+    def test_reclaim_preserves_established_idle_session(self):
+        with server(2, 1, idle_ms=5000, lifetime_ms=20000,
+                    admission='reclaim-stalled', stall_ms=1) as (process, address):
+            with socket.create_connection(address, timeout=5) as held:
+                held.sendall(b'H')
+                self.assertEqual(held.recv(1), b'H')
+                time.sleep(0.02)
+                with socket.create_connection(address, timeout=5) as newcomer:
+                    try:
+                        newcomer.sendall(b'N')
+                        self.assertEqual(newcomer.recv(1), b'')
+                    except ConnectionResetError:
+                        pass
+                held.sendall(b'R')
+                self.assertEqual(held.recv(1), b'R')
+                held.shutdown(socket.SHUT_WR)
+                self.assertEqual(held.recv(1), b'')
+            stopped = self.finish(process)
+            self.assertEqual(stopped['reclaimed'], 0)
+            self.assertEqual(stopped['capacity_rejected'], 1)
+
+    def test_reclaim_backpressured_writer(self):
+        with server(2, 1, idle_ms=5000, lifetime_ms=20000,
+                    admission='reclaim-stalled', stall_ms=10) as (process, address), socket.socket() as slow:
+            slow.settimeout(5)
+            slow.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024)
+            slow.connect(address)
+            slow.sendall(b'X' * (512 * 1024))
+            time.sleep(0.1)  # intentionally do not drain the receive window
+            self.assertEqual(echo(address, b'fast'), b'fast')
+            stopped = self.finish(process)
+            self.assertEqual(stopped['reclaimed'], 1)
+            self.assertEqual(stopped['completed'], 1)
+
+    def test_shutdown_cancels_long_wait(self):
+        with server(0, 1, idle_ms=60000, lifetime_ms=120000) as (process, address):
+            with socket.create_connection(address, timeout=5) as held:
+                held.sendall(b'H')
+                self.assertEqual(held.recv(1), b'H')
+                process.terminate()
+                stopped = self.finish(process)
+            self.assertEqual(stopped['shutdown_closed'], 1)
+            self.assertEqual(stopped['timeouts'], 0)
 
 
 if __name__ == '__main__':

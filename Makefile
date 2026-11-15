@@ -21,9 +21,12 @@ build/tcp_echo: src/uthread.c examples/tcp_echo.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c examples/tcp_echo.c -o $@
 build/test_dynamic: src/uthread.c tests/test_dynamic.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_dynamic.c -o $@
-tcp-check: build/test_write build/test_dynamic build/tcp_echo
+build/test_cancel: src/uthread.c tests/test_cancel.c include/uthread.h | build
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_cancel.c -o $@
+tcp-check: build/test_write build/test_dynamic build/test_cancel build/tcp_echo
 	./build/test_write
 	./build/test_dynamic
+	./build/test_cancel
 	python3 -m unittest discover -s tests -p test_tcp.py -v
 build/benchmark: src/uthread.c examples/benchmark.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) -pthread src/uthread.c examples/benchmark.c -o $@
@@ -56,6 +59,7 @@ perf-check: all build/benchmark-baseline build/scheduler-baseline build/schedule
 wait-perf-check: all build/scheduler-round1 build/scheduler-optimized build/wait-round1 build/wait-optimized
 	python3 scripts/measure_wait_optimization.py
 clean:
+	rm -f build/test_cancel
 	rm -f build/test_dynamic
 	rm -f build/tcp_echo build/test_write
 	rm -f build/socket_service build/test_lifecycle

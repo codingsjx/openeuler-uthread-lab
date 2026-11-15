@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700
 #include "uthread.h"
 #include <ucontext.h>
@@ -10,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/mman.h>
+#include <limits.h>
 
 #define MAX_TASKS 32
 #define STACK_BYTES (128 * 1024)
@@ -21,16 +24,20 @@
 #endif
 #define INITIAL_EVENTS 256
 enum state { READY, RUNNING, WAIT_IO, DONE };
-enum event_kind { EV_READY, EV_RUNNING, EV_WAIT, EV_DONE, EV_MARK };
+enum event_kind { EV_READY, EV_RUNNING, EV_WAIT, EV_DONE, EV_MARK, EV_CANCEL };
 enum event_reason { RE_SPAWN, RE_YIELD, RE_DISPATCH, RE_IO, RE_TIMEOUT,
-                    RE_RETURN, RE_EAGAIN, RE_CONTINUE, RE_WRITE_EAGAIN, RE_ACCEPT_EAGAIN };
-static const char *const kind_names[] = {"ready", "running", "wait_io", "done", "mark"};
+                    RE_RETURN, RE_EAGAIN, RE_CONTINUE, RE_WRITE_EAGAIN, RE_ACCEPT_EAGAIN, RE_CANCEL };
+static const char *const kind_names[] = {"ready", "running", "wait_io", "done", "mark", "cancel"};
 static const char *const reason_names[] = {"spawn", "yield", "dispatch", "io_event", "timeout",
                                           "function_return", "read_eagain", "same_task",
-                                          "write_eagain", "accept_eagain"};
+                                          "write_eagain", "accept_eagain", "cancel_requested"};
 struct task {
     ucontext_t ctx;
     void *stack;
+    void *stack_mapping;
+    size_t stack_bytes, mapping_bytes;
+    unsigned long long generation;
+    int cancelled;
     ut_fn fn;
     void *arg;
     enum state state;
@@ -57,6 +64,8 @@ static struct {
     int64_t start;
     enum ut_policy policy;
 } rt;
+/* Deliberately survives ut_destroy/ut_init so old handles cannot alias a new run. */
+static unsigned long long next_generation;
 
 static uint32_t task_bit(int id) { return UINT32_C(1) << id; }
 /* Callers guarantee a nonzero mask. */
@@ -145,13 +154,33 @@ int ut_init_ex(enum ut_policy policy, enum ut_trace_mode trace_mode) {
 static int prepare_context(struct task *t, int id) {
     if (getcontext(&t->ctx) != 0) return -1;
     t->ctx.uc_stack.ss_sp = t->stack;
-    t->ctx.uc_stack.ss_size = STACK_BYTES;
+    t->ctx.uc_stack.ss_size = t->stack_bytes;
     t->ctx.uc_stack.ss_flags = 0;
     t->ctx.uc_link = &rt.scheduler;
     makecontext(&t->ctx, (void (*)(void))entry, 1, id);
     return 0;
 }
-int ut_spawn(ut_fn fn, void *arg) {
+static void release_stack(struct task *t) {
+    if (t->stack_mapping) munmap(t->stack_mapping, t->mapping_bytes);
+    t->stack_mapping = t->stack = NULL;
+}
+static int allocate_stack(struct task *t) {
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size <= 0) { errno = EINVAL; return -1; }
+    size_t page = (size_t)page_size;
+    t->stack_bytes = ((STACK_BYTES + page - 1) / page) * page;
+    t->mapping_bytes = t->stack_bytes + 2 * page;
+    void *mapping = mmap(NULL, t->mapping_bytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mapping == MAP_FAILED) return -1;
+    void *stack = (char *)mapping + page;
+    if (mprotect(stack, t->stack_bytes, PROT_READ | PROT_WRITE)) {
+        int saved = errno; munmap(mapping, t->mapping_bytes); errno = saved; return -1;
+    }
+    t->stack_mapping = mapping; t->stack = stack;
+    return 0;
+}
+int ut_spawn(ut_fn fn, void *arg) { return ut_spawn_task(fn, arg, NULL); }
+int ut_spawn_task(ut_fn fn, void *arg, struct ut_task_handle *handle) {
     if (!rt.initialized || !fn || (rt.active && rt.current < 0)) { errno = EINVAL; return -1; }
     int id = rt.count;
     for (int i = 0; i < rt.count; i++) {
@@ -159,17 +188,19 @@ int ut_spawn(ut_fn fn, void *arg) {
     }
     if (id == MAX_TASKS) { errno = EAGAIN; return -1; }
     struct task *t = &rt.tasks[id];
-    t->stack = malloc(STACK_BYTES);
-    if (!t->stack) return -1;
+    if (next_generation == ULLONG_MAX) { errno = EOVERFLOW; return -1; }
+    if (allocate_stack(t)) return -1;
     if (prepare_context(t, id) != 0) {
-        int saved = errno; free(t->stack); t->stack = NULL; errno = saved; return -1;
+        int saved = errno; release_stack(t); errno = saved; return -1;
     }
     t->fn = fn; t->arg = arg; t->state = READY; t->saved_errno = 0;
+    t->generation = ++next_generation; t->cancelled = 0;
     t->fd = -1; t->wait_error = 0; t->deadline = -1;
     if (id == rt.count) rt.count++;
     rt.live_count++;
     rt.ready_mask |= task_bit(id);
     record(id, EV_READY, RE_SPAWN, NULL);
+    if (handle) *handle = (struct ut_task_handle){id, t->generation};
     return id;
 }
 void ut_yield(void) {
@@ -232,6 +263,61 @@ static void recompute_deadline(void) {
                 rt.next_deadline = deadline;
         }
     }
+}
+int ut_get_task_info(struct ut_task_handle handle, struct ut_task_info *info) {
+    if (!rt.initialized || !info) { errno = EINVAL; return -1; }
+    if (handle.id < 0 || handle.id >= rt.count || rt.tasks[handle.id].generation != handle.generation) {
+        errno = ESRCH; return -1;
+    }
+    struct task *t = &rt.tasks[handle.id];
+    _Static_assert((int)READY == (int)UT_TASK_READY && (int)RUNNING == (int)UT_TASK_RUNNING &&
+                   (int)WAIT_IO == (int)UT_TASK_WAIT_IO && (int)DONE == (int)UT_TASK_DONE,
+                   "public task states must match internal states");
+    *info = (struct ut_task_info){(enum ut_task_state)t->state,
+                                t->state == WAIT_IO ? t->fd : -1,
+                                t->state == WAIT_IO ? t->wait_events : 0, t->cancelled};
+    return 0;
+}
+int ut_cancelled(void) {
+    if (!rt.active || rt.current < 0) { errno = EINVAL; return -1; }
+    return rt.tasks[rt.current].cancelled;
+}
+int ut_cancel(struct ut_task_handle handle) {
+    if (!rt.initialized) { errno = EINVAL; return -1; }
+    if (handle.id < 0 || handle.id >= rt.count ||
+        rt.tasks[handle.id].generation != handle.generation || rt.tasks[handle.id].state == DONE) {
+        errno = ESRCH; return -1;
+    }
+    struct task *t = &rt.tasks[handle.id];
+    if (t->cancelled) return 0;
+    t->cancelled = 1;
+    record(handle.id, EV_CANCEL, RE_CANCEL, NULL);
+    if (t->state == WAIT_IO) {
+        for (int group = 0; group < rt.wait_groups; group++) {
+            if (!(rt.wait_masks[group] & task_bit(handle.id))) continue;
+            rt.wait_masks[group] &= ~task_bit(handle.id);
+            if (!rt.wait_masks[group]) {
+                int last = --rt.wait_groups;
+                rt.wait_fds[group] = rt.wait_fds[last];
+                rt.wait_masks[group] = rt.wait_masks[last];
+            } else {
+                short interest = 0;
+                uint32_t mask = rt.wait_masks[group];
+                while (mask) {
+                    int id = first_bit(mask); mask &= mask-1;
+                    interest |= rt.tasks[id].wait_events;
+                }
+                rt.wait_fds[group].events = interest;
+            }
+            rt.waiting_count--;
+            break;
+        }
+        t->wait_error = ECANCELED; t->state = READY;
+        rt.ready_mask |= task_bit(handle.id);
+        record(handle.id, EV_READY, RE_CANCEL, NULL);
+        recompute_deadline();
+    }
+    return 0;
 }
 /* Poll at every scheduling boundary, including when other tasks are runnable. */
 static int poll_waiters(int may_block) {
@@ -311,8 +397,7 @@ int ut_run(void) {
         rt.tasks[id].saved_errno = errno;
         rt.current = -1;
         if (rt.tasks[id].state == DONE) {
-            free(rt.tasks[id].stack);
-            rt.tasks[id].stack = NULL;
+            release_stack(&rt.tasks[id]);
         }
     }
     rt.active = 0;
@@ -320,6 +405,7 @@ int ut_run(void) {
 }
 static int check_io(int fd, int timeout_ms) {
     if (!rt.active || rt.current < 0 || timeout_ms < -1) { errno = EINVAL; return -1; }
+    if (rt.tasks[rt.current].cancelled) { errno = ECANCELED; return -1; }
     int flags = fcntl(fd, F_GETFL);
     if (flags < 0) return -1;
     if (!(flags & O_NONBLOCK)) { errno = EINVAL; return -1; }
@@ -331,6 +417,7 @@ static int await_io(int fd, short events, int64_t deadline, enum event_reason re
     struct task *t = &rt.tasks[rt.current];
     record(rt.current, EV_WAIT, reason, NULL);
     if (swapcontext(&t->ctx, &rt.scheduler) != 0) abort();
+    if (t->cancelled) { errno = ECANCELED; return -1; }
     if (t->wait_error) { errno = t->wait_error; return -1; }
     return 0;
 }
@@ -414,7 +501,7 @@ int ut_get_stats(struct ut_stats *stats) {
 }
 void ut_destroy(void) {
     if (rt.active) return;
-    for (int i = 0; i < rt.count; i++) free(rt.tasks[i].stack);
+    for (int i = 0; i < rt.count; i++) release_stack(&rt.tasks[i]);
     free(rt.events);
     memset(&rt, 0, sizeof rt);
 }
