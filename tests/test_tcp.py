@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @contextlib.contextmanager
-def server(limit, workers=3, trace=None):
-    command = [str(ROOT/'build/tcp_echo'), '0', str(limit), str(workers), '500', '3000']
+def server(limit, workers=3, trace=None, idle_ms=500, lifetime_ms=3000):
+    command = [str(ROOT/'build/tcp_echo'), '0', str(limit), str(workers), str(idle_ms), str(lifetime_ms)]
     if trace is not None:
         command.append(str(trace))
     process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE,
@@ -55,7 +55,45 @@ class TCPTests(unittest.TestCase):
     def finish(self, process):
         output, errors = process.communicate(timeout=10)
         self.assertEqual(process.returncode, 0, errors)
-        return json.loads(output.strip())
+        stopped = json.loads(output.strip())
+        self.assertEqual(stopped['accepted'], stopped['admitted'] + stopped['rejected'])
+        self.assertEqual(stopped['admitted'], sum(stopped[key] for key in
+                         ('completed', 'timeouts', 'peer_errors', 'shutdown_closed')))
+        self.assertEqual(stopped['active_remaining'], 0)
+        return stopped
+
+    def test_capacity_rejects_then_recovers(self):
+        with server(3, workers=1, idle_ms=5000, lifetime_ms=20000) as (process, address):
+            with socket.create_connection(address, timeout=5) as held:
+                held.sendall(b'H')
+                self.assertEqual(held.recv(1), b'H')  # confirms the slot is active
+                with socket.create_connection(address, timeout=5) as overflow:
+                    try:
+                        closed = overflow.recv(1)
+                    except ConnectionResetError:
+                        closed = b''
+                    self.assertEqual(closed, b'')
+                held.shutdown(socket.SHUT_WR)
+                self.assertEqual(held.recv(1), b'')  # server has released its slot
+            self.assertEqual(echo(address, b'reused'), b'reused')
+            stopped = self.finish(process)
+            self.assertEqual(stopped['admitted'], 2)
+            self.assertEqual(stopped['capacity_rejected'], 1)
+            self.assertEqual(stopped['peak_active'], 1)
+
+    def test_sequential_slot_reuse_and_recent_trace(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary)/'recent.csv'
+            with server(64, workers=1, trace=trace) as (process, address):
+                for index in range(64):
+                    payload = ('request-'+str(index)).encode()
+                    self.assertEqual(echo(address, payload), payload)
+                stopped = self.finish(process)
+                self.assertEqual(stopped['admitted'], 64)
+                self.assertEqual(stopped['rejected'], 0)
+                self.assertEqual(stopped['completed'], 64)
+                self.assertEqual(stopped['peak_active'], 1)
+            self.assertIn('overwritten', trace.read_text())
 
     def test_fragmented_binary_echo_and_idle_cleanup(self):
         with server(3) as (process, address), socket.create_connection(address, timeout=5) as idle:

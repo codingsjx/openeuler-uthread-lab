@@ -44,7 +44,7 @@ static struct {
     ucontext_t scheduler;
     struct task tasks[MAX_TASKS];
     struct event *events;
-    size_t event_count, event_capacity, dropped;
+    size_t event_count, event_capacity, event_start, overwritten, dropped;
     int count, current, cursor, active, initialized, live_count, waiting_count;
     uint32_t ready_mask;
     struct pollfd wait_fds[MAX_TASKS];
@@ -79,7 +79,7 @@ static void record(int tid, enum event_kind kind, enum event_reason reason, cons
     if (rt.trace_mode == UT_TRACE_OFF) return;
     int saved_errno = errno;
     if (rt.trace_error) { rt.dropped++; return; }
-    if (rt.event_count == rt.event_capacity) {
+    if (rt.event_count == rt.event_capacity && rt.trace_mode != UT_TRACE_RECENT) {
         if (rt.event_capacity == UT_TRACE_LIMIT) {
             rt.trace_error = ENOSPC; rt.dropped++; return;
         }
@@ -91,7 +91,15 @@ static void record(int tid, enum event_kind kind, enum event_reason reason, cons
         }
         rt.events = events; rt.event_capacity = capacity;
     }
-    struct event *e = &rt.events[rt.event_count++];
+    size_t index;
+    if (rt.event_count == rt.event_capacity) {
+        index = rt.event_start;
+        rt.event_start = (rt.event_start + 1) % rt.event_capacity;
+        rt.overwritten++;
+    } else {
+        index = (rt.event_start + rt.event_count++) % rt.event_capacity;
+    }
+    struct event *e = &rt.events[index];
     e->us = now_us() - rt.start;
     e->tid = tid;
     e->kind = (uint8_t)kind; e->reason = (uint8_t)reason;
@@ -115,12 +123,12 @@ int ut_init(enum ut_policy policy) {
 int ut_init_ex(enum ut_policy policy, enum ut_trace_mode trace_mode) {
     if (rt.initialized) { errno = EBUSY; return -1; }
     if ((policy != UT_ROUND_ROBIN && policy != UT_FIRST_READY) ||
-        (trace_mode != UT_TRACE_FULL && trace_mode != UT_TRACE_OFF)) {
+        (trace_mode != UT_TRACE_FULL && trace_mode != UT_TRACE_OFF && trace_mode != UT_TRACE_RECENT)) {
         errno = EINVAL; return -1;
     }
     memset(&rt, 0, sizeof rt);
     rt.trace_mode = trace_mode;
-    if (trace_mode == UT_TRACE_FULL) {
+    if (trace_mode != UT_TRACE_OFF) {
         rt.event_capacity = INITIAL_EVENTS < UT_TRACE_LIMIT ? INITIAL_EVENTS : UT_TRACE_LIMIT;
         rt.events = malloc(rt.event_capacity * sizeof *rt.events);
         if (!rt.events) return -1;
@@ -144,7 +152,7 @@ static int prepare_context(struct task *t, int id) {
     return 0;
 }
 int ut_spawn(ut_fn fn, void *arg) {
-    if (!rt.initialized || rt.active || !fn) { errno = EINVAL; return -1; }
+    if (!rt.initialized || !fn || (rt.active && rt.current < 0)) { errno = EINVAL; return -1; }
     int id = rt.count;
     for (int i = 0; i < rt.count; i++) {
         if (rt.tasks[i].state == DONE) { id = i; break; }
@@ -379,8 +387,9 @@ int ut_trace_write(const char *path) {
     FILE *f = fopen(path, "w");
     if (!f) return -1;
     fprintf(f, "time_us,tid,event,detail\n");
+    if (rt.overwritten) fprintf(f, "0,-1,overwritten,%zu\n", rt.overwritten);
     for (size_t i = 0; i < rt.event_count; i++) {
-        struct event *e = &rt.events[i];
+        struct event *e = &rt.events[(rt.event_start + i) % rt.event_capacity];
         /* Quotes escaped according to CSV rules; labels cannot inject columns. */
         fprintf(f, "%lld,%d,%s,\"", (long long)e->us, e->tid, kind_names[e->kind]);
         const char *detail = e->kind == EV_MARK ? e->label : reason_names[e->reason];

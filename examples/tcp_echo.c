@@ -14,10 +14,13 @@
 
 /* Bounded streaming echo, deliberately not HTTP. Drain the pending buffer
  * before reading again: a slow receiver cannot grow an application queue. */
-enum { BUFFER_BYTES = 4096, TURN_BYTES = 16384 };
+enum { BUFFER_BYTES = 4096, TURN_BYTES = 16384, CONNECTION_SLOTS = 31 };
 static int listener, workers = 8, idle_ms = 500, lifetime_ms = 5000, server_failed;
-static unsigned long limit, accepted, completed, timeouts, peer_errors, active, peak_active;
+static unsigned long limit, accepted, admitted, rejected, capacity_rejected, resource_rejected;
+static unsigned long completed, timeouts, peer_errors, shutdown_closed, active, peak_active;
 static volatile sig_atomic_t stopping;
+struct connection { int fd; unsigned long id; };
+static struct connection connections[CONNECTION_SLOTS];
 
 static void stop_handler(int number) { (void)number; stopping = 1; }
 static int64_t now_ms(void) {
@@ -74,12 +77,27 @@ static int echo_connection(int fd, unsigned long id) {
         }
     }
     connection_mark("shutdown", id);
-    return 0;
+    return 2;
 timeout:
+    if (stopping) { connection_mark("shutdown", id); return 2; }
     connection_mark(now_ms() >= deadline ? "lifetime_timeout" : timeout_reason, id);
     return 1;
 }
-static void serve(void *arg) {
+static void serve_connection(void *arg) {
+    struct connection *connection = arg;
+    int status = echo_connection(connection->fd, connection->id);
+    if (status == 1) timeouts++;
+    else if (status == 2) shutdown_closed++;
+    else if (status < 0) peer_errors++;
+    else completed++;
+    close(connection->fd);
+    connection->fd = -1;
+    active--;
+    connection_mark("connection_closed", connection->id);
+    /* Do not yield after releasing the application slot: return first so the
+     * scheduler also frees this task stack before the acceptor reuses it. */
+}
+static void accept_connections(void *arg) {
     (void)arg;
     while (!stopping && (!limit || accepted < limit)) {
         int fd = ut_accept(listener, NULL, NULL, 100);
@@ -88,24 +106,38 @@ static void serve(void *arg) {
             if (errno == ECONNABORTED || errno == EPROTO) { ut_yield(); continue; }
             perror("ut_accept"); server_failed = 1; stopping = 1; return;
         }
-        if (stopping || (limit && accepted >= limit)) { close(fd); return; }
         unsigned long id = ++accepted;
-        active++;
-        if (active > peak_active) peak_active = active;
+        if (stopping) { rejected++; close(fd); break; }
+        int slot = 0;
+        while (slot < workers && connections[slot].fd >= 0) slot++;
+        if (slot == workers) {
+            rejected++; capacity_rejected++;
+            connection_mark("capacity_reject", id);
+            close(fd);
+            ut_yield();
+            continue;
+        }
         /* Kernel socket queues are finite too; their effective size is OS
          * controlled and is separate from the strict application buffer bound. */
         int bytes = 16384;
         if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &bytes, sizeof bytes)) {
-            peer_errors++;
+            rejected++; resource_rejected++;
+            connection_mark("resource_reject", id);
+            close(fd);
         } else {
-            int status = echo_connection(fd, id);
-            if (status == 1) timeouts++;
-            else if (status < 0) peer_errors++;
-            else completed++;
+            connections[slot] = (struct connection){fd, id};
+            if (ut_spawn(serve_connection, &connections[slot]) < 0) {
+                rejected++; resource_rejected++;
+                connection_mark("resource_reject", id);
+                connections[slot].fd = -1;
+                close(fd);
+            } else {
+                admitted++; active++;
+                if (active > peak_active) peak_active = active;
+                connection_mark("connection_admitted", id);
+            }
         }
-        close(fd);
-        active--;
-        connection_mark("connection_closed", id);
+        /* Bound the acceptor's own work even under a continuous connection flood. */
         ut_yield();
     }
 }
@@ -125,7 +157,7 @@ int main(int argc, char **argv) {
     }
     int port = argc > 1 ? (int)number(argv[1], 0, 65535) : 8080;
     limit = argc > 2 ? (unsigned long)number(argv[2], 0, 1000000) : 0;
-    if (argc > 3) workers = (int)number(argv[3], 1, 32);
+    if (argc > 3) workers = (int)number(argv[3], 1, CONNECTION_SLOTS);
     if (argc > 4) idle_ms = (int)number(argv[4], 1, 60000);
     if (argc > 5) lifetime_ms = (int)number(argv[5], 1, 3600000);
     struct sigaction stop = {0}, ignore = {0};
@@ -146,19 +178,30 @@ int main(int argc, char **argv) {
     }
     socklen_t length = sizeof address;
     if (getsockname(listener, (struct sockaddr *)&address, &length)) return 1;
-    if (ut_init_ex(UT_ROUND_ROBIN, argc > 6 ? UT_TRACE_FULL : UT_TRACE_OFF)) return 1;
-    for (int i = 0; i < workers; i++) {
-        if (ut_spawn(serve, NULL) < 0) { ut_destroy(); close(listener); return 1; }
-    }
+    if (ut_init_ex(UT_ROUND_ROBIN, argc > 6 ? UT_TRACE_RECENT : UT_TRACE_OFF)) return 1;
+    for (int i = 0; i < CONNECTION_SLOTS; i++) connections[i].fd = -1;
+    if (ut_spawn(accept_connections, NULL) < 0) { ut_destroy(); close(listener); return 1; }
     printf("{\"event\":\"listening\",\"address\":\"127.0.0.1\",\"port\":%u,"
-           "\"workers\":%d,\"buffer_bytes_per_connection\":%d}\n",
-           (unsigned)ntohs(address.sin_port), workers, BUFFER_BYTES);
+           "\"workers\":%d,\"buffer_bytes_per_connection\":%d,"
+           "\"admission\":\"close_when_full\",\"trace_mode\":\"%s\"}\n",
+           (unsigned)ntohs(address.sin_port), workers, BUFFER_BYTES, argc > 6 ? "recent" : "off");
     fflush(stdout);
     int status = ut_run();
     if (argc > 6 && ut_trace_write(argv[6])) { perror("trace export"); status = -1; }
+    /* ut_run can fail before task callbacks unwind; keep fd ownership here. */
+    for (int i = 0; i < workers; i++) {
+        if (connections[i].fd >= 0) {
+            close(connections[i].fd);
+            connections[i].fd = -1;
+            active--; shutdown_closed++;
+        }
+    }
     ut_destroy(); close(listener);
     printf("{\"event\":\"stopped\",\"accepted\":%lu,\"completed\":%lu,"
-           "\"timeouts\":%lu,\"peer_errors\":%lu,\"peak_active\":%lu}\n",
-           accepted, completed, timeouts, peer_errors, peak_active);
+           "\"admitted\":%lu,\"rejected\":%lu,\"capacity_rejected\":%lu,"
+           "\"resource_rejected\":%lu,\"timeouts\":%lu,\"peer_errors\":%lu,"
+           "\"shutdown_closed\":%lu,\"peak_active\":%lu,\"active_remaining\":%lu}\n",
+           accepted, completed, admitted, rejected, capacity_rejected, resource_rejected,
+           timeouts, peer_errors, shutdown_closed, peak_active, active);
     return status || server_failed ? 1 : 0;
 }
