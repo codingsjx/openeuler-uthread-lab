@@ -6,6 +6,7 @@ on:
       - 'include/**'
       - 'examples/**'
       - 'tests/**'
+      - 'tools/**'
       - 'scripts/**'
       - 'benchmarks/**'
       - 'Makefile'
@@ -25,13 +26,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Trace viewer parser
+        run: node --test tests/test_trace_core.cjs
       - name: Functional tests and data validation
         run: |
           mkdir -p results
           make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
           python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
       - name: TCP read/write correctness
-        run: make tcp-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-tcp.log 2>&1
+        run: TRACE_TEST_ARTIFACT_DIR=results/functional-traces make tcp-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-tcp.log 2>&1
       - name: Socket service and lifecycle evidence
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.measurements }}
         run: make service-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-service.log 2>&1
@@ -50,6 +53,7 @@ jobs:
             results/optimization-20*/
             results/ci-check.log
             results/ci-tcp.log
+            results/functional-traces/
             results/service-20*/
             results/ci-service.log
             results/ci-optimization.log
@@ -82,7 +86,7 @@ jobs:
           make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
           python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
       - name: TCP read/write correctness
-        run: make tcp-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-tcp.log 2>&1
+        run: TRACE_TEST_ARTIFACT_DIR=results/functional-traces make tcp-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-tcp.log 2>&1
       - name: Socket service and lifecycle evidence
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.measurements }}
         run: make service-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-service.log 2>&1
@@ -101,6 +105,7 @@ jobs:
             results/optimization-20*/
             results/ci-check.log
             results/ci-tcp.log
+            results/functional-traces/
             results/service-20*/
             results/ci-service.log
             results/ci-optimization.log

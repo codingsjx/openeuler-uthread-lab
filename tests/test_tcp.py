@@ -8,8 +8,17 @@ import subprocess
 import tempfile
 import unittest
 import time
+import os
+import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
+
+def keep_functional_trace(path, name):
+    destination = os.environ.get('TRACE_TEST_ARTIFACT_DIR')
+    if destination:
+        folder = Path(destination)
+        folder.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, folder/name)
 
 
 @contextlib.contextmanager
@@ -132,16 +141,29 @@ class TCPTests(unittest.TestCase):
             self.assertEqual(self.finish(process)['accepted'], 0)
 
     def test_reclaim_silent_peer_for_ready_request(self):
-        with server(2, 1, idle_ms=5000, lifetime_ms=20000,
-                    admission='reclaim-stalled', stall_ms=1) as (process, address):
-            with socket.create_connection(address, timeout=5) as silent:
-                time.sleep(0.1)  # create a deliberately stale, never-started session
-                self.assertEqual(echo(address, b'replacement'), b'replacement')
-                self.assertEqual(silent.recv(1), b'')
-            stopped = self.finish(process)
-            self.assertEqual(stopped['reclaimed'], 1)
-            self.assertEqual(stopped['completed'], 1)
-            self.assertEqual(stopped['rejected'], 0)
+        for policy in ('reject', 'reclaim-stalled'):
+            with self.subTest(policy=policy), tempfile.TemporaryDirectory() as temporary:
+                trace = Path(temporary)/'functional.csv'
+                with server(2, 1, trace, idle_ms=5000, lifetime_ms=20000,
+                            admission=policy, stall_ms=1) as (process, address):
+                    with socket.create_connection(address, timeout=5) as silent:
+                        time.sleep(0.1)  # deliberately stale, never-started session
+                        if policy == 'reclaim-stalled':
+                            self.assertEqual(echo(address, b'replacement'), b'replacement')
+                        else:
+                            with socket.create_connection(address, timeout=5) as newcomer:
+                                try:
+                                    newcomer.sendall(b'replacement')
+                                    self.assertEqual(newcomer.recv(1), b'')
+                                except ConnectionResetError:
+                                    pass
+                            silent.shutdown(socket.SHUT_WR)
+                        self.assertEqual(silent.recv(1), b'')
+                    stopped = self.finish(process)
+                    self.assertEqual(stopped['reclaimed'], int(policy == 'reclaim-stalled'))
+                    self.assertEqual(stopped['completed'], 1)
+                    self.assertEqual(stopped['rejected'], int(policy == 'reject'))
+                keep_functional_trace(trace, policy+'.csv')
 
     def test_reclaim_preserves_established_idle_session(self):
         with server(2, 1, idle_ms=5000, lifetime_ms=20000,
