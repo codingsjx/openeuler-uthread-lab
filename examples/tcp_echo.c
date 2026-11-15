@@ -85,6 +85,7 @@ static void serve(void *arg) {
         int fd = ut_accept(listener, NULL, NULL, 100);
         if (fd < 0) {
             if (errno == ETIMEDOUT) continue;
+            if (errno == ECONNABORTED || errno == EPROTO) { ut_yield(); continue; }
             perror("ut_accept"); server_failed = 1; stopping = 1; return;
         }
         if (stopping || (limit && accepted >= limit)) { close(fd); return; }

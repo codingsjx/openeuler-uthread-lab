@@ -107,6 +107,11 @@ int main(void) {
     assert(ut_spawn(waiting_writer, NULL) >= 0);
     assert(ut_spawn(peer, NULL) >= 0);
     assert(ut_run() == 0 && reader_done && writer_done && union_seen && read_only_seen);
+    struct ut_stats stats;
+    assert(ut_get_stats(&stats) == 0);
+    /* Each task starts once and resumes once. Waking the reader on POLLOUT
+     * would add a spurious read/EAGAIN/dispatch round. */
+    assert(stats.dispatches == 6);
     cleanup();
     writer_done = reader_done = 0;
     setup(); fill();
