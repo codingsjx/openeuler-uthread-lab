@@ -1,0 +1,44 @@
+mkdir -p build
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c examples/demo.c -o build/demo
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c tests/test_runtime.c -o build/test_runtime
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror -DUT_TRACE_LIMIT=16 src/uthread.c tests/test_trace_limit.c -o build/test_trace_limit
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c tests/test_wait_registry.c -Wl,--wrap=poll,--wrap=__poll_chk -o build/test_wait_registry
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror -pthread src/uthread.c examples/benchmark.c -o build/benchmark
+python3 scripts/run_experiments.py
+PASS: EOF, deadline, invalid fd, blocking-fd rejection, competing readers, EINTR, reinitialization
+PASS: single-task yield, trace growth/CSV, trace-off, slot reuse, errno isolation
+PASS: trace exhaustion preserves task execution and fails export explicitly
+PASS: shared-fd deadline isolation, compacted ready groups, POLLNVAL, bit 31 wrap, reused slots
+{
+  "status": "passed",
+  "environment": {
+    "system": "Linux",
+    "node": "runnervmtai0g",
+    "release": "6.17.0-1022-azure",
+    "version": "#22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026",
+    "machine": "x86_64",
+    "processor": "x86_64"
+  },
+  "io": {
+    "blocking": {
+      "worker_ticks_before_read_end": 0,
+      "first_worker_tick_us": 200175,
+      "read_end_us": 200143
+    },
+    "event": {
+      "worker_ticks_before_read_end": 40,
+      "first_worker_tick_us": 25,
+      "read_end_us": 200134
+    }
+  },
+  "note": "Single smoke experiment; not a benchmark or statistical performance claim."
+}
+test_bad_trace_is_rejected (test_reporting.ReportingTests.test_bad_trace_is_rejected) ... ok
+test_failed_measurements_are_not_reported_as_passed (test_reporting.ReportingTests.test_failed_measurements_are_not_reported_as_passed) ... ok
+test_known_quartiles (test_reporting.ReportingTests.test_known_quartiles) ... ok
+test_script_terminator_is_not_executable (test_reporting.ReportingTests.test_script_terminator_is_not_executable) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK

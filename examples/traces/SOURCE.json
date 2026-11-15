@@ -1,0 +1,12 @@
+{
+  "purpose": "Actual CI functional-case examples for the local trace viewer; not a benchmark or a performance report",
+  "run_url": "https://github.com/codingsjx/openeuler-uthread-lab/actions/runs/43708838184",
+  "source_commit": "1da9ed17ec7e3f0acb898ef7ab320e407c5f50fe",
+  "environment": "Ubuntu CI runner",
+  "test": "test_reclaim_silent_peer_for_ready_request; capacity 1, stall threshold 1 ms, a silent peer then a newcomer carrying data",
+  "scope": "One functional run per policy. Not statistical evidence; scheduling delays can affect threshold policies.",
+  "sha256": {
+    "reject.csv": "d90da8fb825f640bfe9e675f14c83dac7654b46bc885ca32146b679e1595beb1",
+    "reclaim-stalled.csv": "2eb50a330d175667e0da2b8d2d7afc802e8ad448d2ca3d30de1c73cfa7ecb8b6"
+  }
+}

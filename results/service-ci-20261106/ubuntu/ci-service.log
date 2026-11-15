@@ -1,0 +1,4 @@
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c examples/socket_service.c -o build/socket_service
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c tests/test_lifecycle.c -o build/test_lifecycle
+python3 scripts/validate_service.py
+{"status": "passed", "results": "/home/runner/work/openeuler-uthread-lab/openeuler-uthread-lab/results/service-20261106T110613Z-c1ae8e"}

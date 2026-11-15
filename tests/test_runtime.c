@@ -7,10 +7,33 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <unistd.h>
+#ifdef NDEBUG
+#error Runtime tests require assertions to be enabled
+#endif
 
 static int descriptors[2], observed;
 static int received;
 static volatile sig_atomic_t alarms;
+static int recycled_tasks;
+static void many_yields(void *arg) {
+    (void)arg;
+    ut_mark("comma,\"quote\"\nnewline");
+    for (int i = 0; i < 1000; i++) ut_yield();
+}
+static void recycled_task(void *arg) {
+    (void)arg;
+    recycled_tasks++;
+    ut_yield();
+}
+static void errno_task(void *arg) {
+    int expected = *(int *)arg;
+    errno = expected;
+    for (int i = 0; i < 10; i++) {
+        ut_mark("errno_preserved");
+        ut_yield();
+        assert(errno == expected);
+    }
+}
 static void alarm_handler(int number) { (void)number; alarms++; }
 static void competing_reader(void *arg) {
     (void)arg;
@@ -89,6 +112,36 @@ int main(void) {
     assert(sigaction(SIGALRM, &previous, NULL) == 0);
     close(descriptors[0]); close(descriptors[1]);
     ut_destroy();
+    assert(ut_init(UT_ROUND_ROBIN) == 0);
+    assert(ut_spawn(many_yields, NULL) >= 0);
+    assert(ut_run() == 0);
+    struct ut_stats stats;
+    assert(ut_get_stats(&stats) == 0);
+    assert(stats.dispatches == 1 && stats.yield_shortcuts == 1000 && stats.poll_calls == 0);
+    assert(stats.recorded_events > 256 && stats.dropped_events == 0);
+    assert(ut_trace_write("build/trace-growth.csv") == 0);
+    ut_destroy();
+    assert(ut_init_ex(UT_ROUND_ROBIN, UT_TRACE_OFF) == 0);
+    assert(ut_spawn(many_yields, NULL) >= 0);
+    assert(ut_run() == 0 && ut_get_stats(&stats) == 0);
+    assert(stats.trace_allocated_bytes == 0 && stats.recorded_events == 0);
+    assert(ut_trace_write("build/trace-disabled.csv") == -1 && errno == ENOTSUP);
+    ut_destroy();
+    assert(ut_init(UT_ROUND_ROBIN) == 0);
+    for (int batch = 0; batch < 100; batch++) {
+        assert(ut_spawn(recycled_task, NULL) >= 0);
+        assert(ut_spawn(recycled_task, NULL) >= 0);
+        assert(ut_run() == 0);
+    }
+    assert(recycled_tasks == 200);
+    ut_destroy();
+    assert(ut_init(UT_ROUND_ROBIN) == 0);
+    int first_errno = ERANGE, second_errno = ECHILD;
+    assert(ut_spawn(errno_task, &first_errno) >= 0);
+    assert(ut_spawn(errno_task, &second_errno) >= 0);
+    assert(ut_run() == 0);
+    ut_destroy();
     puts("PASS: EOF, deadline, invalid fd, blocking-fd rejection, competing readers, EINTR, reinitialization");
+    puts("PASS: single-task yield, trace growth/CSV, trace-off, slot reuse, errno isolation");
     return 0;
 }

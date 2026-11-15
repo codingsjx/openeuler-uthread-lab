@@ -1,0 +1,14 @@
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror -DHAVE_TRACE_OPTIONS benchmarks/round1/uthread.c examples/scheduler_benchmark.c -o build/scheduler-round1
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror benchmarks/round1/uthread.c examples/wait_benchmark.c -o build/wait-round1
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c examples/wait_benchmark.c -o build/wait-optimized
+python3 scripts/measure_wait_optimization.py
+Completed: scheduler 1
+Completed: scheduler 8
+Completed: scheduler 32
+Completed: wait shared-1
+Completed: wait shared-8
+Completed: wait shared-31
+Completed: wait distinct-1
+Completed: wait distinct-8
+Completed: wait distinct-31
+WAIT_OPTIMIZATION_RESULT=/home/oslab/oslab-project/validation-20261029T081843Z-ef1a96/uthread-lab/results/wait-optimization-20261029T081905Z-853cbc

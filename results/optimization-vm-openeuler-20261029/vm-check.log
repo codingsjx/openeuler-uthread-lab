@@ -1,0 +1,35 @@
+mkdir -p build
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c examples/demo.c -o build/demo
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c tests/test_runtime.c -o build/test_runtime
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror -DUT_TRACE_LIMIT=16 src/uthread.c tests/test_trace_limit.c -o build/test_trace_limit
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror src/uthread.c tests/test_wait_registry.c -Wl,--wrap=poll,--wrap=__poll_chk -o build/test_wait_registry
+cc -Iinclude -O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror -pthread src/uthread.c examples/benchmark.c -o build/benchmark
+python3 scripts/run_experiments.py
+PASS: EOF, deadline, invalid fd, blocking-fd rejection, competing readers, EINTR, reinitialization
+PASS: single-task yield, trace growth/CSV, trace-off, slot reuse, errno isolation
+PASS: trace exhaustion preserves task execution and fails export explicitly
+PASS: shared-fd deadline isolation, compacted ready groups, POLLNVAL, bit 31 wrap, reused slots
+{
+  "status": "passed",
+  "environment": {
+    "system": "Linux",
+    "node": "localhost.localdomain",
+    "release": "6.6.0-132.0.0.111.oe2403sp3.x86_64",
+    "version": "#1 SMP Mon Dec 29 23:07:38 CST 2025",
+    "machine": "x86_64",
+    "processor": "x86_64"
+  },
+  "io": {
+    "blocking": {
+      "worker_ticks_before_read_end": 0,
+      "first_worker_tick_us": 208907,
+      "read_end_us": 208881
+    },
+    "event": {
+      "worker_ticks_before_read_end": 40,
+      "first_worker_tick_us": 61,
+      "read_end_us": 201374
+    }
+  },
+  "note": "Single smoke experiment; not a benchmark or statistical performance claim."
+}

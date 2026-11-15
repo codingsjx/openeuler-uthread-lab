@@ -40,7 +40,7 @@ def read_trace(path):
         timestamp = int(row['time_us'])
         row['tid'] = int(row['tid'])
         row['time_us'] = timestamp
-        if timestamp < previous or row['event'] == 'dropped':
+        if timestamp < previous or row['event'] in ('dropped', 'overwritten'):
             raise ValueError('incomplete or non-monotonic trace')
         previous = timestamp
     if not rows:

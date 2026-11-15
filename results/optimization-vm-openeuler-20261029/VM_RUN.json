@@ -1,0 +1,78 @@
+{
+  "status": "passed",
+  "source_revision": "f32c5cec356b32e2c5b09314b9145b6af06ae3f6",
+  "source_archive_sha256": "92028d4d8f4be1185c3709f9b63eb254d387cf57cfee46fc71d9e55806de8250",
+  "environment": {
+    "os_release": {
+      "NAME": "openEuler",
+      "ID": "openEuler",
+      "PRETTY_NAME": "openEuler 24.03 (LTS-SP3)",
+      "VERSION": "24.03 (LTS-SP3)",
+      "VERSION_ID": "24.03",
+      "ANSI_COLOR": "0;31"
+    },
+    "uname": {
+      "system": "Linux",
+      "node": "localhost.localdomain",
+      "release": "6.6.0-132.0.0.111.oe2403sp3.x86_64",
+      "version": "#1 SMP Mon Dec 29 23:07:38 CST 2025",
+      "machine": "x86_64",
+      "processor": "x86_64"
+    },
+    "cpu_affinity": [
+      0,
+      1
+    ],
+    "machine": "Local VirtualBox openEuler-OSLab; 2 vCPU, 4096 MiB",
+    "compiler": "cc (GCC) 12.3.1 (openEuler 12.3.1-111.oe2403sp3)"
+  },
+  "commands": [
+    {
+      "argv": [
+        "make",
+        "check",
+        "CFLAGS=-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror"
+      ],
+      "log": "vm-check.log",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_reporting.py",
+        "-v"
+      ],
+      "log": "vm-reporting.log",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "make",
+        "perf-check",
+        "CFLAGS=-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror"
+      ],
+      "log": "vm-optimization.log",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "make",
+        "wait-perf-check",
+        "CFLAGS=-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror"
+      ],
+      "log": "vm-wait-optimization.log",
+      "status": "passed",
+      "exit_code": 0
+    }
+  ],
+  "project_directory": "/home/oslab/oslab-project/validation-20261029T081843Z-ef1a96/uthread-lab"
+}

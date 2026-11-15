@@ -1,0 +1,61 @@
+{
+  "status": "passed",
+  "revision": "fc71f4b",
+  "source_archive_sha256": "5be4d14764576fac076f8c8f1848ac6c8ce903f585be085a96948614d0cce92b",
+  "directory": "/home/oslab/oslab-project/service-20261106T112207Z-1efad0/uthread-lab",
+  "uname": {
+    "system": "Linux",
+    "node": "localhost.localdomain",
+    "release": "6.6.0-132.0.0.111.oe2403sp3.x86_64",
+    "version": "#1 SMP Mon Dec 29 23:07:38 CST 2025",
+    "machine": "x86_64",
+    "processor": "x86_64"
+  },
+  "uid": 1000,
+  "os_release": {
+    "NAME": "openEuler",
+    "ID": "openEuler",
+    "PRETTY_NAME": "openEuler 24.03 (LTS-SP3)",
+    "VERSION": "24.03 (LTS-SP3)",
+    "VERSION_ID": "24.03",
+    "ANSI_COLOR": "0;31"
+  },
+  "commands": [
+    {
+      "argv": [
+        "make",
+        "check",
+        "CFLAGS=-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror"
+      ],
+      "log": "vm-check.log",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_reporting.py",
+        "-v"
+      ],
+      "log": "vm-reporting.log",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "make",
+        "service-check",
+        "CFLAGS=-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror"
+      ],
+      "log": "vm-service.log",
+      "status": "passed",
+      "exit_code": 0
+    }
+  ]
+}

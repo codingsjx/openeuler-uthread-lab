@@ -1,0 +1,10 @@
+{
+  "id": 40336853277,
+  "html_url": "https://github.com/codingsjx/openeuler-uthread-lab/actions/runs/40336853277",
+  "head_sha": "524567e86db0b18043c091ac17e718afa020b5bb",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-26T14:08:28Z",
+  "artifact_id": 12656229980,
+  "artifact_name": "ubuntu-runtime-optimization-524567e86db0b18043c091ac17e718afa020b5bb"
+}

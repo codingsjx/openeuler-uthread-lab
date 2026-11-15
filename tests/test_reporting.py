@@ -25,6 +25,8 @@ class ReportingTests(unittest.TestCase):
             with self.assertRaises(ValueError): read_trace(path)
             path.write_text('time_us,tid,event,detail\n10,-1,dropped,9\n',encoding='utf-8')
             with self.assertRaises(ValueError): read_trace(path)
+            path.write_text('time_us,tid,event,detail\n0,-1,overwritten,99\n10,0,done,function_return\n',encoding='utf-8')
+            with self.assertRaises(ValueError): read_trace(path)
     def test_failed_measurements_are_not_reported_as_passed(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'benchmark.json'

@@ -1,0 +1,9 @@
+test_bad_trace_is_rejected (test_reporting.ReportingTests.test_bad_trace_is_rejected) ... ok
+test_failed_measurements_are_not_reported_as_passed (test_reporting.ReportingTests.test_failed_measurements_are_not_reported_as_passed) ... ok
+test_known_quartiles (test_reporting.ReportingTests.test_known_quartiles) ... ok
+test_script_terminator_is_not_executable (test_reporting.ReportingTests.test_script_terminator_is_not_executable) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.002s
+
+OK
