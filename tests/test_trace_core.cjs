@@ -20,4 +20,7 @@ test('request phase and lifecycle explanations preserve large connection identif
  assert.match(explain({event:'mark',detail:'phase_timeout:a:header'}),/固定期限/);
  assert.match(explain({event:'mark',detail:'request_complete:a'}),/不等于客户端已经读取/);
  assert.match(explain({event:'mark',detail:'reclaim:ffffffffffffffff>a'}),/0xffffffffffffffff/);
+ assert.match(explain({event:'mark',tid:3,detail:'generation:b:ff'}),/任务槽 T3 的第 255 代/);
+ assert.match(explain({event:'mark',detail:'stage_age:b:fa'}),/阶段持续 250 ms/);
+ assert.match(explain({event:'mark',detail:'budget_ms:header:3e8'}),/1000 ms/);
 });

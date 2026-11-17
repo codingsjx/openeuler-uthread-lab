@@ -55,6 +55,13 @@
   function explain(event) {
     const d = event.detail;
     const connectionId = value => Number.isSafeInteger(parseInt(value, 16)) ? String(parseInt(value, 16)) : '0x'+value;
+    const generation = /^generation:([0-9a-f]+):([0-9a-f]+)$/.exec(d);
+    if (generation) return '连接 ' + connectionId(generation[1]) + ' 在任务槽 T' + event.tid + ' 的第 ' + connectionId(generation[2]) + ' 代运行。槽号可以复用，代次不同表示不同任务。';
+    const age = /^(stage_age|byte_age):([0-9a-f]+):([0-9a-f]+)$/.exec(d);
+    if (age) return '决策时记录：连接 ' + connectionId(age[2]) + (age[1] === 'stage_age' ? ' 当前阶段持续 ' : ' 距上次字节进展 ') + connectionId(age[3]) + ' ms。这是记录的决策依据，不是事后推算的客户端时延。';
+    const budget = /^budget_ms:(header|body|write|idle|lifetime|stall):([0-9a-f]+)$/.exec(d);
+    if (budget) return '本次运行的 ' + budget[1] + ' 预算 / 阈值为 ' + connectionId(budget[2]) + ' ms；该设置记录可能在最近窗口中被覆盖。';
+    if (/^policy:(reject|byte-stalled|phase-aware)$/.test(d)) return '本次请求服务使用的准入策略：' + d.slice(7) + '。比较时还需保持容量、探测和阶段期限配置一致。';
     const stage = /^(phase|phase_timeout|victim_phase):([0-9a-f]+):(header|body|write|idle)$/.exec(d);
     if (stage) {
       const names = {header:'请求头',body:'请求体',write:'响应写出',idle:'会话空闲'};

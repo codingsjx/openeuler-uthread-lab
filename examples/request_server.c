@@ -31,7 +31,7 @@ struct connection {
 static struct connection *connections;
 static int capacity = 8, probe_capacity = 2, header_ms = 1000, body_ms = 1000;
 static int response_ms = 1000, idle_ms = 2000, lifetime_ms = 10000, stall_ms = 200;
-static int listener = -1, notifications[2] = {-1, -1}, failed;
+static int listener = -1, notifications[2] = {-1, -1}, failed, tracing;
 static unsigned long limit, accepted, opened, closed_total, direct_rejected, probe_rejected;
 static unsigned long direct_admitted, probe_started, promoted, requests_completed;
 static unsigned long clean_closed, timeout_closed, protocol_closed, error_closed, reclaimed, shutdown_closed;
@@ -48,13 +48,25 @@ static int64_t now_ms(void) {
 }
 static void signal_stop(int number) { (void)number; stopping = 1; }
 static void mark(const char *reason, unsigned long id) {
+    if (!tracing) return;
     char label[48]; snprintf(label, sizeof label, "%s:%lx", reason, id); ut_mark(label);
 }
 static void phase_mark(const char *reason, struct connection *connection) {
+    if (!tracing) return;
     char label[48];
     snprintf(label, sizeof label, "%s:%lx:%s", reason, connection->id,
              request_phase_name(connection->progress.phase));
     ut_mark(label);
+}
+static void age_mark(const char *reason, struct connection *connection, int64_t age) {
+    if (!tracing) return;
+    char label[48];
+    snprintf(label, sizeof label, "%s:%lx:%llx", reason, connection->id, (unsigned long long)age);
+    ut_mark(label);
+}
+static void budget_mark(const char *name, int budget) {
+    if (!tracing) return;
+    char label[48]; snprintf(label, sizeof label, "budget_ms:%s:%x", name, (unsigned)budget); ut_mark(label);
 }
 static void begin_phase(struct connection *connection, enum request_phase phase, int64_t start, int budget) {
     connection->progress.phase = phase;
@@ -118,11 +130,15 @@ static int admit_probe(struct connection *connection) {
     struct ut_task_handle old_task = victim->task;
     unsigned long old_id = victim->id;
     phase_mark("victim_phase", victim);
+    age_mark("stage_age", victim, now_ms() - victim->progress.stage_started_ms);
+    age_mark("byte_age", victim, now_ms() - victim->progress.last_progress_ms);
     victim->evicted = 1;
     reservations++;
     if (ut_cancel(old_task)) { victim->evicted = 0; reservations--; return 0; }
-    char label[48];
-    snprintf(label, sizeof label, "reclaim:%lx>%lx", old_id, connection->id); ut_mark(label);
+    if (tracing) {
+        char label[48];
+        snprintf(label, sizeof label, "reclaim:%lx>%lx", old_id, connection->id); ut_mark(label);
+    }
     /* The acceptor can reuse the application slot while this probe yields.
      * Wait on the generation-checked task, never on a reused fd/slot number. */
     for (;;) {
@@ -203,6 +219,11 @@ static void notify_supervisor(void) {
 }
 static void serve(void *arg) {
     struct connection *connection = arg;
+    if (tracing) {
+        char label[48];
+        snprintf(label, sizeof label, "generation:%lx:%llx", connection->id, connection->task.generation);
+        ut_mark(label);
+    }
     enum outcome result = handle_requests(connection);
     switch (result) {
         case CLOSED_CLEAN: clean_closed++; break;
@@ -320,6 +341,7 @@ int main(int argc, char **argv) {
         } else { fprintf(stderr, "unknown option: %s\n", argv[i]); return 2; }
     }
     if (capacity + probe_capacity > MAX_SLOTS) { fprintf(stderr, "capacity + probes must be <= 31\n"); return 2; }
+    tracing = trace != NULL;
     connections = calloc((size_t)(capacity + probe_capacity), sizeof *connections);
     if (!connections) return 1;
     for (int i = 0; i < capacity + probe_capacity; i++) connections[i].fd = -1;
@@ -336,10 +358,17 @@ int main(int argc, char **argv) {
     socklen_t length = sizeof address;
     if (getsockname(listener, (struct sockaddr *)&address, &length) || ut_init_ex(UT_ROUND_ROBIN, trace ? UT_TRACE_RECENT : UT_TRACE_OFF)) return 1;
     if (ut_spawn(supervisor, NULL) < 0) return 1;
+    if (tracing) {
+        char label[48]; snprintf(label, sizeof label, "policy:%s", policy_name); ut_mark(label);
+        budget_mark("header", header_ms); budget_mark("body", body_ms); budget_mark("write", response_ms);
+        budget_mark("idle", idle_ms); budget_mark("lifetime", lifetime_ms); budget_mark("stall", stall_ms);
+    }
     printf("{\"event\":\"listening\",\"port\":%u,\"protocol\":\"u32be-xor5a\",\"max_body\":%d,"
-           "\"policy\":\"%s\",\"capacity\":%d,\"probes\":%d,\"task_budget\":%d,\"fd_budget\":%d,\"buffer_budget\":%zu}\n",
+           "\"policy\":\"%s\",\"capacity\":%d,\"probes\":%d,\"task_budget\":%d,\"fd_budget\":%d,\"buffer_budget\":%zu,"
+           "\"header_ms\":%d,\"body_ms\":%d,\"response_ms\":%d,\"idle_ms\":%d,\"lifetime_ms\":%d,\"stall_ms\":%d}\n",
            (unsigned)ntohs(address.sin_port), MAX_BODY, policy_name, capacity, probe_capacity,
-           1+capacity+probe_capacity, 4+capacity+probe_capacity, (size_t)(capacity+probe_capacity)*(MAX_BODY+4));
+           1+capacity+probe_capacity, 4+capacity+probe_capacity, (size_t)(capacity+probe_capacity)*(MAX_BODY+4),
+           header_ms, body_ms, response_ms, idle_ms, lifetime_ms, stall_ms);
     fflush(stdout);
     if (ut_run()) failed = 1;
     if (trace && ut_trace_write(trace)) { perror("trace"); failed = 1; }
