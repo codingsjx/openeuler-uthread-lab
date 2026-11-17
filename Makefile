@@ -5,7 +5,7 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=c11 -Wall -Wextra -Wpedantic
 
 .PHONY: all check check-linux check-functional viewer-check request-check benchmark report perf-check wait-perf-check service-check tcp-check clean
-all: build/demo build/test_runtime build/test_trace_limit build/test_wait_registry build/benchmark
+all: build/demo build/test_runtime build/test_trace_limit build/test_wait_registry build/benchmark build/tcp_echo build/request_server
 build:
 	mkdir -p build
 build/demo: src/uthread.c examples/demo.c include/uthread.h | build

@@ -288,6 +288,15 @@ int main(int argc, char **argv) {
     int port = 8081;
     const char *trace = NULL;
     for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--help")) {
+            puts("request_server --port=8081 --capacity=8 --probes=2 --admission=phase-aware\n"
+                 "  --admission=reject|byte-stalled|phase-aware --stall-ms=200\n"
+                 "  --header-ms=1000 --body-ms=1000 --response-ms=1000 --idle-ms=2000\n"
+                 "  --lifetime-ms=10000 --limit=0 --trace=FILE.csv\n"
+                 "Protocol: 4-byte unsigned big-endian length (1..4096), then body.\n"
+                 "Response: same length, then body XOR 0x5a. capacity + probes <= 31.");
+            return 0;
+        }
         const char *value = strchr(argv[i], '=');
         if (!value) { fprintf(stderr, "use --name=value options\n"); return 2; }
         value++;

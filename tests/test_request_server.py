@@ -11,6 +11,7 @@ import unittest
 import os
 import shutil
 import tempfile
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -111,6 +112,17 @@ class RequestTests(unittest.TestCase):
             result = self.finish(process, ready)
             self.assertEqual(result['requests_completed'], 2)
             self.assertEqual(result['clean_closed'], 1)
+
+    def test_client_command_interoperates(self):
+        with server() as (process, address, ready):
+            client = subprocess.run([sys.executable, str(ROOT/'scripts/request_client.py'),
+                                     '--port', str(address[1]), '--message', 'demo', '--repeat', '2'],
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(client.returncode, 0, client.stderr)
+            responses = [json.loads(line) for line in client.stdout.splitlines()]
+            self.assertEqual(len(responses), 2)
+            self.assertTrue(all(row['verified'] for row in responses))
+            self.assertEqual(self.finish(process, ready)['requests_completed'], 2)
 
     def test_invalid_length_and_truncated_body(self):
         for wire in (struct.pack('!I', 4097), struct.pack('!I', 0), struct.pack('!I', 5)+b'x'):
