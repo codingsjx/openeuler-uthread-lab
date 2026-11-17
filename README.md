@@ -76,7 +76,7 @@ python3 scripts/request_client.py --message 'hello openEuler' --repeat 3
 
 每个池槽固定保留 4 字节头和 4096 字节体缓冲；探测槽也计入 `buffer_budget`。启动信息同时列出任务和服务 fd 预算：一个监听 fd、两个通知管道端、最多 C+P 个池内连接，以及一个正在接收后判定是否拒绝的临时 fd。缓冲预算不含元数据、栈、轨迹、内核 socket 缓冲和进程标准输入输出。累计计数独立于最近事件窗口，区分完整请求、直接拒绝、探测拒绝、回收、协议错误和不同阶段超时；这些是所有权与行为计数，不是内存测量或端到端时延。
 
-诊断台可解释 `phase`、`phase_timeout`、`victim_phase`、`request_ready`、`request_complete` 和探测提升标记。`examples/traces/request-*.csv` 是三个策略的真实功能用例轨迹，来源在 `REQUEST_SOURCE.json`；它们不构成统计性能结论。可导入这些文件查看“只发送一个请求头字节后停住”时的不同决策。
+诊断台可解释 `phase`、`phase_timeout`、`victim_phase`、`request_ready`、`request_complete` 和探测提升标记。新运行还记录 `generation`（任务代次）、`stage_age`、`byte_age`、`policy` 和各阶段 `budget_ms`；数字标记采用十六进制编码，界面会解释。最近窗口可能覆盖这些起点，缺失的配置或历史不得自行补造。`examples/traces/request-*.csv` 是三个策略的真实功能用例轨迹，来源在 `REQUEST_SOURCE.json`；它们不构成统计性能结论。可导入这些文件查看“只发送一个请求头字节后停住”时的不同决策。
 
 基本功能入口：`make check-linux` 覆盖运行时、旧 TCP、新协议、策略与 Python 解析检查；`make check-functional` 再加诊断台解析器检查（需要支持 `node --test` 的 Node.js）。CI 的 Ubuntu 任务运行完整入口，openEuler 容器运行 Linux 入口；push 与 pull_request 都触发基本检查，性能测量继续只由手动选项触发。
 

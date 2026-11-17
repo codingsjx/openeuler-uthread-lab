@@ -380,7 +380,7 @@ int main(int argc, char **argv) {
     ut_destroy(); close(listener); listener = -1;
     close(notifications[0]); notifications[0] = -1;
     close(notifications[1]); notifications[1] = -1;
-    int owned_remaining = listener >= 0 || notifications[0] >= 0 || notifications[1] >= 0;
+    int owned_remaining = (listener >= 0) + (notifications[0] >= 0) + (notifications[1] >= 0);
     for (int i = 0; i < capacity + probe_capacity; i++) owned_remaining += connections[i].fd >= 0;
     free(connections);
     if (failed) { live_workers = live_probes = reservations = 0; }
