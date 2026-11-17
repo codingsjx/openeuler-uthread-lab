@@ -31,7 +31,10 @@ int ut_cancelled(void);
 int ut_get_task_info(struct ut_task_handle handle, struct ut_task_info *info);
 int ut_run(void);
 void ut_yield(void);
-/* fd must already be O_NONBLOCK; timeout_ms >= 0, or -1 for no deadline. */
+/* fd must already be O_NONBLOCK; timeout_ms >= 0, or -1 for no deadline.
+ * Caller owns fd lifetime. Do not close/dup2/reuse a waited fd from another
+ * task: cancel its owner and let that task finish cleanup first. Task handle
+ * generations do not protect recycled kernel descriptor numbers. */
 ssize_t ut_read(int fd, void *buf, size_t size, int timeout_ms);
 /* POSIX partial-write semantics: returns bytes written, not necessarily size.
  * Caller owns SIGPIPE policy (e.g. SIG_IGN in a standalone socket service).

@@ -1,4 +1,4 @@
-#define _DEFAULT_SOURCE
+#define _GNU_SOURCE
 #define _XOPEN_SOURCE 700
 #include "uthread.h"
 #include <ucontext.h>
@@ -452,15 +452,20 @@ int ut_accept(int fd, struct sockaddr *address, socklen_t *length, int timeout_m
     if (check_io(fd, timeout_ms)) return -1;
     int64_t deadline = timeout_ms < 0 ? -1 : now_us() + (int64_t)timeout_ms * 1000;
     for (;;) {
-        int connection = accept(fd, address, length);
-        if (connection >= 0) {
-            int flags = fcntl(connection, F_GETFL);
-            int descriptor_flags = fcntl(connection, F_GETFD);
-            if (flags < 0 || descriptor_flags < 0 ||
-                fcntl(connection, F_SETFL, flags | O_NONBLOCK) < 0 ||
-                fcntl(connection, F_SETFD, descriptor_flags | FD_CLOEXEC) < 0) {
-                int saved = errno; close(connection); errno = saved; return -1;
+        int connection = accept4(fd, address, length, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        if (connection < 0 && errno == ENOSYS) {
+            connection = accept(fd, address, length);
+            if (connection >= 0) {
+                int flags = fcntl(connection, F_GETFL);
+                int descriptor_flags = fcntl(connection, F_GETFD);
+                if (flags < 0 || descriptor_flags < 0 ||
+                    fcntl(connection, F_SETFL, flags | O_NONBLOCK) < 0 ||
+                    fcntl(connection, F_SETFD, descriptor_flags | FD_CLOEXEC) < 0) {
+                    int saved = errno; close(connection); errno = saved; return -1;
+                }
             }
+        }
+        if (connection >= 0) {
             return connection;
         }
         if (errno == EINTR) { if (retry_interrupted(deadline)) return -1; continue; }

@@ -54,8 +54,30 @@
   }
   function explain(event) {
     const d = event.detail;
+    const connectionId = value => Number.isSafeInteger(parseInt(value, 16)) ? String(parseInt(value, 16)) : '0x'+value;
+    const generation = /^generation:([0-9a-f]+):([0-9a-f]+)$/.exec(d);
+    if (generation) return '连接 ' + connectionId(generation[1]) + ' 在任务槽 T' + event.tid + ' 的第 ' + connectionId(generation[2]) + ' 代运行。槽号可以复用，代次不同表示不同任务。';
+    const age = /^(stage_age|byte_age):([0-9a-f]+):([0-9a-f]+)$/.exec(d);
+    if (age) return '决策时记录：连接 ' + connectionId(age[2]) + (age[1] === 'stage_age' ? ' 当前阶段持续 ' : ' 距上次字节进展 ') + connectionId(age[3]) + ' ms。这是记录的决策依据，不是事后推算的客户端时延。';
+    const budget = /^budget_ms:(header|body|write|idle|lifetime|stall):([0-9a-f]+)$/.exec(d);
+    if (budget) return '本次运行的 ' + budget[1] + ' 预算 / 阈值为 ' + connectionId(budget[2]) + ' ms；该设置记录可能在最近窗口中被覆盖。';
+    if (/^policy:(reject|byte-stalled|phase-aware)$/.test(d)) return '本次请求服务使用的准入策略：' + d.slice(7) + '。比较时还需保持容量、探测和阶段期限配置一致。';
+    const stage = /^(phase|phase_timeout|victim_phase):([0-9a-f]+):(header|body|write|idle)$/.exec(d);
+    if (stage) {
+      const names = {header:'请求头',body:'请求体',write:'响应写出',idle:'会话空闲'};
+      const prefix = '连接 ' + connectionId(stage[2]) + ' 的' + names[stage[3]] + '阶段';
+      if (stage[1] === 'phase_timeout') return prefix + '达到固定期限。少量字节和部分写入不会重置该期限。';
+      if (stage[1] === 'victim_phase') return prefix + '被选为回收候选；还需结合取消、关闭和新任务准入记录判断交接是否完成。';
+      return prefix + '开始。阶段标记描述连接状态，不等于 Linux 内核线程状态。';
+    }
     const relation = /^reclaim:([0-9a-f]+)>([0-9a-f]+)$/.exec(d);
-    if (relation) return '策略决定：回收连接 ' + parseInt(relation[1], 16) + '，为已有请求数据的新连接 ' + parseInt(relation[2], 16) + ' 释放容量。阈值是策略选择，不能证明旧连接存在恶意。';
+    if (relation) return '策略决定：回收连接 ' + connectionId(relation[1]) + '，为已有请求数据的新连接 ' + connectionId(relation[2]) + ' 释放容量。阈值是策略选择，不能证明旧连接存在恶意。';
+    if (d.startsWith('request_ready:')) return '已收齐长度合法的完整请求。协议服务中的探测任务到达这里后，才有资格申请处理容量。';
+    if (d.startsWith('request_complete:')) return '服务端已将完整响应写入内核，接下来进入会话空闲；这不等于客户端已经读取响应。';
+    if (d.startsWith('probe_started:')) return '已创建独立的有界探测任务。它计入任务、连接和缓冲预算，接收任务可继续接收其他连接。';
+    if (d.startsWith('probe_promoted:')) return '完整请求获得处理容量，原探测任务转为处理任务，没有额外创建任务。';
+    if (d.startsWith('probe_rejected:')) return '候选已完成请求，但没有获得处理容量或合适回收对象，因此关闭候选连接。';
+    if (d.startsWith('operation_yield:')) return '部分传输达到协作检查点，主动让出执行机会；不代表强制 CPU 时间片。';
     if (event.event === 'overwritten') return '记录只保留最近事件，已有 ' + d + ' 条旧事件被覆盖。不能据此推断完整任务历史或完整耗时。';
     if (event.event === 'dropped') return '记录发生丢失，本文件不能当作完整轨迹。';
     if (event.event === 'cancel') return '已请求协作取消。等待中的运行时 I/O 将返回 ECANCELED；任务仍需执行清理并正常返回，取消不等于已经退出。';

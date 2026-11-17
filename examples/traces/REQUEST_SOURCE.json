@@ -1,0 +1,24 @@
+{
+  "purpose": "Actual single-run functional examples of partial-header admission, not benchmark data",
+  "run_url": "https://github.com/codingsjx/openeuler-uthread-lab/actions/runs/44010504106",
+  "source_commit": "f997351fd9c0a63c435ce2e9c45a5aaf80214973",
+  "environment": "Ubuntu CI runner",
+  "test": "test_partial_header_three_policies",
+  "configuration": {
+    "capacity": 1,
+    "probes": 2,
+    "task_budget": 4,
+    "header_ms": 3000,
+    "body_ms": 3000,
+    "response_ms": 3000,
+    "idle_ms": 3000,
+    "lifetime_ms": 20000,
+    "stall_ms": 10
+  },
+  "scenario": "One connection sends one header byte and pauses; a later connection sends a complete valid frame. Only admission policy changes.",
+  "sha256": {
+    "request-reject.csv": "0676076a1a055ad5632755956370fb60d5f91f7ed0e199fac5c65fc3eb53943e",
+    "request-byte-stalled.csv": "fda34654f2154435d8bf9e66d9dee107c9b220a966bf4495cb4d90f1bfa89dc1",
+    "request-phase-aware.csv": "bc7f3f87218d97ec8ff3f2c4a777e886de2f8f15631db447f1b3a6f3ab1076f2"
+  }
+}

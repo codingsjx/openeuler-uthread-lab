@@ -12,6 +12,16 @@ on:
       - 'Makefile'
       - '.gitattributes'
       - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'examples/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - 'Makefile'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       measurements:
@@ -26,15 +36,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Trace viewer parser
-        run: node --test tests/test_trace_core.cjs
-      - name: Functional tests and data validation
+      - name: Unified functional suite
         run: |
           mkdir -p results
-          make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
-          python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
-      - name: TCP read/write correctness
-        run: TRACE_TEST_ARTIFACT_DIR=results/functional-traces make tcp-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-tcp.log 2>&1
+          TRACE_TEST_ARTIFACT_DIR=results/functional-traces make check-functional CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-functional.log 2>&1
       - name: Socket service and lifecycle evidence
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.measurements }}
         run: make service-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-service.log 2>&1
@@ -51,7 +56,7 @@ jobs:
           name: ubuntu-runtime-optimization-${{ github.sha }}
           path: |
             results/optimization-20*/
-            results/ci-check.log
+            results/ci-functional.log
             results/ci-tcp.log
             results/functional-traces/
             results/service-20*/
@@ -80,13 +85,10 @@ jobs:
           gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-openEuler
           REPO
           dnf --setopt=reposdir=/tmp/ci-repos --setopt=timeout=20 --setopt=retries=1 install -y gcc make python3 glibc-devel git
-      - name: Functional tests and data validation
+      - name: Unified functional suite
         run: |
           mkdir -p results
-          make check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-check.log 2>&1
-          python3 -m unittest discover -s tests -p test_reporting.py -v >> results/ci-check.log 2>&1
-      - name: TCP read/write correctness
-        run: TRACE_TEST_ARTIFACT_DIR=results/functional-traces make tcp-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-tcp.log 2>&1
+          TRACE_TEST_ARTIFACT_DIR=results/functional-traces make check-linux CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-functional.log 2>&1
       - name: Socket service and lifecycle evidence
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.measurements }}
         run: make service-check CFLAGS='-O2 -g -std=c11 -Wall -Wextra -Wpedantic -Werror' > results/ci-service.log 2>&1
@@ -103,7 +105,7 @@ jobs:
           name: openeuler-runtime-optimization-${{ github.sha }}
           path: |
             results/optimization-20*/
-            results/ci-check.log
+            results/ci-functional.log
             results/ci-tcp.log
             results/functional-traces/
             results/service-20*/
