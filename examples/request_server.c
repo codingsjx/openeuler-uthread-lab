@@ -101,7 +101,11 @@ static int eligible_victim(void) {
             ut_get_task_info(candidate->task, &info) || info.cancelled || info.state != UT_TASK_WAIT_IO) continue;
         struct pollfd readiness = {.fd=candidate->fd, .events=info.events};
         if (poll(&readiness, 1, 0) != 0) continue;
-        if (choice < 0 || candidate->progress.stage_started_ms < connections[choice].progress.stage_started_ms)
+        int64_t priority = policy == ADMISSION_BYTE_STALLED ? candidate->progress.last_progress_ms
+                                                          : candidate->progress.stage_started_ms;
+        int64_t previous = choice < 0 ? 0 : policy == ADMISSION_BYTE_STALLED
+                         ? connections[choice].progress.last_progress_ms : connections[choice].progress.stage_started_ms;
+        if (choice < 0 || priority < previous)
             choice = i;
     }
     return choice;

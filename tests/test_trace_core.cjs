@@ -15,3 +15,9 @@ test('reclaim explanation uses recorded relation, labels stay raw text',()=>{
  const data=parseCSV('time_us,tid,event,detail\n1,0,mark,<img src=x onerror=alert(1)>\n');
  assert.equal(data.events[0].detail,'<img src=x onerror=alert(1)>');
 });
+test('request phase and lifecycle explanations preserve large connection identifiers',()=>{
+ assert.match(explain({event:'mark',detail:'phase:b:body'}),/连接 11 的请求体/);
+ assert.match(explain({event:'mark',detail:'phase_timeout:a:header'}),/固定期限/);
+ assert.match(explain({event:'mark',detail:'request_complete:a'}),/不等于客户端已经读取/);
+ assert.match(explain({event:'mark',detail:'reclaim:ffffffffffffffff>a'}),/0xffffffffffffffff/);
+});

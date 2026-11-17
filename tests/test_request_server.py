@@ -8,9 +8,20 @@ import subprocess
 import threading
 import time
 import unittest
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def keep_trace(path, policy):
+    destination = os.environ.get('TRACE_TEST_ARTIFACT_DIR')
+    if destination:
+        folder = Path(destination)
+        folder.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, folder/('request-'+policy+'.csv'))
 
 
 @contextlib.contextmanager
@@ -137,26 +148,29 @@ class RequestTests(unittest.TestCase):
 
     def test_partial_header_three_policies(self):
         for admission in ('reject', 'byte-stalled', 'phase-aware'):
-            with self.subTest(admission=admission), server(limit=2, capacity=1, admission=admission) as (process, address, ready):
-                with socket.create_connection(address, timeout=5) as partial:
-                    partial.sendall(b'\0')
-                    time.sleep(0.08)
-                    with socket.create_connection(address, timeout=5) as newcomer:
-                        if admission == 'phase-aware':
-                            self.assertEqual(request(newcomer, b'valid'), bytes(x ^ 0x5a for x in b'valid'))
-                            finish_client(newcomer)
-                            self.assertTrue(closed(partial))
-                        else:
-                            try:
-                                newcomer.sendall(struct.pack('!I', 5)+b'valid')
-                            except (ConnectionResetError, BrokenPipeError):
-                                pass
-                            self.assertTrue(closed(newcomer))
-                            partial.shutdown(socket.SHUT_WR)
-                            self.assertTrue(closed(partial))
-                result = self.finish(process, ready)
-                self.assertEqual(result['reclaimed'], int(admission == 'phase-aware'))
-                self.assertEqual(result['requests_completed'], int(admission == 'phase-aware'))
+            with self.subTest(admission=admission), tempfile.TemporaryDirectory() as temporary:
+                trace = Path(temporary)/'request.csv'
+                with server(limit=2, capacity=1, admission=admission, trace=trace) as (process, address, ready):
+                    with socket.create_connection(address, timeout=5) as partial:
+                        partial.sendall(b'\0')
+                        time.sleep(0.08)
+                        with socket.create_connection(address, timeout=5) as newcomer:
+                            if admission == 'phase-aware':
+                                self.assertEqual(request(newcomer, b'valid'), bytes(x ^ 0x5a for x in b'valid'))
+                                finish_client(newcomer)
+                                self.assertTrue(closed(partial))
+                            else:
+                                try:
+                                    newcomer.sendall(struct.pack('!I', 5)+b'valid')
+                                except (ConnectionResetError, BrokenPipeError):
+                                    pass
+                                self.assertTrue(closed(newcomer))
+                                partial.shutdown(socket.SHUT_WR)
+                                self.assertTrue(closed(partial))
+                    result = self.finish(process, ready)
+                    self.assertEqual(result['reclaimed'], int(admission == 'phase-aware'))
+                    self.assertEqual(result['requests_completed'], int(admission == 'phase-aware'))
+                keep_trace(trace, admission)
 
     def test_silent_probe_does_not_hold_up_ready_probe(self):
         with server(limit=3, capacity=1, probes=2, header_ms=2000) as (process, address, ready):

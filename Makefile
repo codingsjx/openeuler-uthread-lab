@@ -17,7 +17,7 @@ build/test_trace_limit: src/uthread.c tests/test_trace_limit.c include/uthread.h
 build/test_wait_registry: src/uthread.c tests/test_wait_registry.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_wait_registry.c -Wl,--wrap=poll,--wrap=__poll_chk -o $@
 build/test_write: src/uthread.c tests/test_write.c include/uthread.h | build
-	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_write.c -Wl,--wrap=poll,--wrap=__poll_chk -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c tests/test_write.c -Wl,--wrap=poll,--wrap=__poll_chk,--wrap=accept4 -o $@
 build/tcp_echo: src/uthread.c examples/tcp_echo.c include/uthread.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/uthread.c examples/tcp_echo.c -o $@
 build/request_server: src/uthread.c examples/request_server.c examples/request_policy.c include/uthread.h include/request_policy.h | build

@@ -15,6 +15,12 @@
 
 static int pair[2], writer_done, reader_done, union_seen, read_only_seen;
 static size_t filled;
+static int fallback_once;
+int __real_accept4(int, struct sockaddr *, socklen_t *, int);
+int __wrap_accept4(int fd, struct sockaddr *address, socklen_t *length, int flags) {
+    if (fallback_once) { fallback_once = 0; errno = ENOSYS; return -1; }
+    return __real_accept4(fd, address, length, flags);
+}
 int __real_poll(struct pollfd *, nfds_t, int);
 int __real___poll_chk(struct pollfd *, nfds_t, int, size_t);
 static void inspect(struct pollfd *fds, nfds_t count) {
@@ -91,11 +97,13 @@ static void closed_writer(void *arg) {
 }
 static void accept_connection(void *arg) {
     int listener = *(int *)arg;
-    int fd = ut_accept(listener, NULL, NULL, 1000);
-    assert(fd >= 0);
-    assert(fcntl(fd, F_GETFL) & O_NONBLOCK);
-    assert(fcntl(fd, F_GETFD) & FD_CLOEXEC);
-    assert(close(fd) == 0);
+    for (int i = 0; i < 2; i++) {
+        int fd = ut_accept(listener, NULL, NULL, 1000);
+        assert(fd >= 0);
+        assert(fcntl(fd, F_GETFL) & O_NONBLOCK);
+        assert(fcntl(fd, F_GETFD) & FD_CLOEXEC);
+        assert(close(fd) == 0);
+    }
     assert(ut_accept(listener, NULL, NULL, 0) == -1 && errno == ETIMEDOUT);
 }
 int main(void) {
@@ -127,14 +135,17 @@ int main(void) {
     assert(listener >= 0); nonblock(listener);
     struct sockaddr_in address = {.sin_family=AF_INET, .sin_addr.s_addr=htonl(INADDR_LOOPBACK)};
     assert(bind(listener, (struct sockaddr *)&address, sizeof address) == 0);
-    assert(listen(listener, 1) == 0);
+    assert(listen(listener, 2) == 0);
     socklen_t length = sizeof address;
     assert(getsockname(listener, (struct sockaddr *)&address, &length) == 0);
     int client = socket(AF_INET, SOCK_STREAM, 0);
     assert(client >= 0 && connect(client, (struct sockaddr *)&address, length) == 0);
+    int another = socket(AF_INET, SOCK_STREAM, 0);
+    assert(another >= 0 && connect(another, (struct sockaddr *)&address, length) == 0);
+    fallback_once = 1;
     assert(ut_init(UT_ROUND_ROBIN) == 0);
     assert(ut_spawn(accept_connection, &listener) >= 0 && ut_run() == 0);
-    ut_destroy(); close(client); close(listener);
+    ut_destroy(); close(client); close(another); close(listener);
     puts("PASS: mixed read/write interests, partial writes, timeout, EPIPE and accept flags");
     return 0;
 }
